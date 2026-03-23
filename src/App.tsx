@@ -17,6 +17,7 @@ function App() {
   const [savedDevices, setSavedDevices] = useState<{ name: string; ip: string }[]>([]);
   const [imeOpen, setImeOpen] = useState(false);
   const [imeLabel, setImeLabel] = useState("");
+  const [imeValue, setImeValue] = useState("");
 
   const sseRef = useRef<EventSource | null>(null);
 
@@ -47,6 +48,7 @@ function App() {
         const data = JSON.parse(e.data);
         if (data.ip !== ip) return;
         setImeLabel(data.label || "");
+        setImeValue(data.value || "");
         setImeOpen(true);
       } catch (err) { }
     });
@@ -207,6 +209,7 @@ function App() {
   return (
     <RemoteScreen
       tvName={tvName}
+      ip={ip}
       volume={volume}
       volumeMax={volumeMax}
       muted={muted}
@@ -215,6 +218,7 @@ function App() {
       sendText={sendText}
       imeOpen={imeOpen}
       imeLabel={imeLabel}
+      imeValue={imeValue}
       setImeOpen={setImeOpen}
       onSettingsClick={() => initApp()}
     />

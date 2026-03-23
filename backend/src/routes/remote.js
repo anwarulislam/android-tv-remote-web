@@ -2,12 +2,90 @@ const express = require("express");
 const { AndroidRemote, RemoteDirection } = require("androidtv-remote");
 const fs = require("fs");
 const path = require("path");
+const protobufjs = require("protobufjs");
 const router = express.Router();
+
+// ── Monkey-patch AndroidRemote to add IME support ─────────────────────────────
+// Note: Don't try to import RemoteManager directly - it's an ES module
+// We'll access it through the AndroidRemote instance after start()
+const protoPath = path.join(__dirname, "../../node_modules/.pnpm/androidtv-remote@1.0.10/node_modules/androidtv-remote/src/remote/remotemessage.proto");
+let RemoteMessageProto;
+try {
+  const root = protobufjs.loadSync(protoPath);
+  RemoteMessageProto = root.lookupType("remote.RemoteMessage");
+  console.log("[Server] Protobuf loaded successfully");
+} catch (e) {
+  console.error("[Server] Failed to load protobuf:", e);
+}
+
+// Per-connection IME counter
+const imeCounters = new Map();
+
+// Add sendImeText method to AndroidRemote
+AndroidRemote.prototype.sendImeText = function(appPackage, counterField, text) {
+  if (!RemoteMessageProto || !this.remoteManager?.client) {
+    throw new Error("Cannot send IME text: not properly initialized");
+  }
+
+  // Use provided counterField, stored counter, or 0
+  const counter = counterField ?? imeCounters.get(this.host) ?? 0;
+
+  console.log(`[Library] sendImeText: app=${appPackage}, counter=${counter}, text="${text}"`);
+
+  const message = RemoteMessageProto.create({
+    remoteImeKeyInject: {
+      textFieldStatus: {
+        counterField: counter,
+        value: text,
+      },
+      appInfo: {
+        appPackage: appPackage || "",
+      }
+    }
+  });
+
+  const array = RemoteMessageProto.encodeDelimited(message).finish();
+  this.remoteManager.client.write(array);
+
+  // Increment counter for next use
+  imeCounters.set(this.host, counter + 1);
+  return true;
+};
+
+// Patch AndroidRemote.start to forward IME events from remoteManager
+const originalAndroidStart = AndroidRemote.prototype.start;
+AndroidRemote.prototype.start = async function() {
+  const result = await originalAndroidStart.call(this);
+
+  if (this.remoteManager) {
+    // Forward IME events to AndroidRemote
+    this.remoteManager.on('ime_show', (data) => {
+      console.log(`[Library] ime_show: ${JSON.stringify(data)}`);
+      // Initialize counter if not set
+      if (!imeCounters.has(this.host)) {
+        imeCounters.set(this.host, 0);
+      }
+      this.emit('ime_show', data);
+    });
+    this.remoteManager.on('ime_hide', () => {
+      console.log("[Library] ime_hide");
+      this.emit('ime_hide');
+    });
+    this.remoteManager.on('ime_batch_edit', (data) => {
+      console.log(`[Library] ime_batch_edit: ${JSON.stringify(data)}`);
+      this.emit('ime_batch_edit', data);
+    });
+  }
+
+  return result;
+};
+// ──────────────────────────────────────────────────────────────────────────────
 
 let remotes = {};
 let remotesState = {}; // "pairing" | "connected"
 let remoteVolume = {}; // { level, maximum, muted } per IP
 let remoteImeLabel = {}; // last known IME field label per IP
+let remoteImeValue = {}; // last known IME field value per IP
 let remoteImeInfo = {}; // { appPackage, counterField } per IP – for text injection
 let sseClients = []; // SSE subscriber list
 
@@ -103,19 +181,25 @@ router.post("/connect", async (req, res) => {
     remote.on("current_app", (app) => broadcast("current_app", { ip, app }));
 
     remote.on("ime_show", (data) => {
+      console.log(`[Server] ime_show: ${JSON.stringify(data)}`);
       remoteImeLabel[ip] = data.label || "";
+      if (data.value !== undefined) remoteImeValue[ip] = data.value;
+      // Store counterField for text injection
+      if (!remoteImeInfo[ip]) remoteImeInfo[ip] = {};
+      if (data.counterField !== undefined) remoteImeInfo[ip].counterField = data.counterField;
       broadcast("ime_show", { ip, ...data });
     });
 
-    remote.on("ime_key_inject", (data) => {
-      remoteImeInfo[ip] = {
-        appPackage: data.appPackage,
-        counterField: data.counterField,
-      };
+    // Store app package when current_app event fires (from remoteImeKeyInject)
+    remote.on("current_app", (appPackage) => {
+      console.log(`[Server] current_app: ${appPackage}`);
+      if (!remoteImeInfo[ip]) remoteImeInfo[ip] = {};
+      remoteImeInfo[ip].appPackage = appPackage;
     });
 
-    remote.on("ime_batch_edit", () => {
-      broadcast("ime_show", { ip, label: remoteImeLabel[ip] || "", value: "" });
+    remote.on("ime_batch_edit", (data) => {
+      if (data.value !== undefined) remoteImeValue[ip] = data.value;
+      broadcast("ime_show", { ip, label: remoteImeLabel[ip] || "", value: data.value || remoteImeValue[ip] || "" });
     });
 
     remote.on("ime_hide", () => broadcast("ime_hide", { ip }));
@@ -212,14 +296,24 @@ router.post("/send-text", async (req, res) => {
   const remote = remotes[ip];
   if (!remote) return res.status(400).json({ error: "Not connected" });
 
-  try {
-    const info = remoteImeInfo[ip];
-    remote.sendImeText(info?.appPackage || "", info?.counterField ?? 0, text);
-    return res.json({ status: "ok" });
-  } catch (e) {
-    console.warn(
-      `[Server] Direct IME inject failed, falling back: ${e.message}`,
-    );
+  console.log(`[Server] send-text: ip=${ip}, text="${text}"`);
+  console.log(`[Server] remoteImeInfo[${ip}]:`, remoteImeInfo[ip]);
+
+  // Store the sent text for future retrieval
+  remoteImeValue[ip] = text;
+
+  // First try direct IME injection if we have the required info
+  const info = remoteImeInfo[ip];
+  if (info && info.appPackage) {
+    try {
+      console.log(`[Server] Using direct IME inject: app=${info.appPackage}, counter=${info.counterField ?? 0}`);
+      remote.sendImeText(info.appPackage, info.counterField ?? 0, text);
+      return res.json({ status: "ok" });
+    } catch (e) {
+      console.warn(`[Server] Direct IME inject failed: ${e.message}`);
+    }
+  } else {
+    console.warn(`[Server] No IME info available, falling back to key simulation`);
   }
 
   // Fallback: keycode simulation
@@ -250,6 +344,14 @@ router.post("/send-text", async (req, res) => {
     return s[ch] || null;
   }
   try {
+    // Clear existing text first
+    const existingText = remoteImeValue[ip] || "";
+    for (let i = 0; i < existingText.length; i++) {
+      remote.sendKey(67, RemoteDirection.SHORT); // KEYCODE_DEL (backspace)
+      await sleep(30);
+    }
+
+    // Send new text
     for (const ch of text) {
       const mapped = charToKey(ch);
       if (!mapped) continue;
@@ -268,6 +370,15 @@ router.post("/send-text", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Get current IME value ───────────────────────────────────────────────────────
+router.get("/ime-value", (req, res) => {
+  const ip = req.query.ip;
+  if (ip && remoteImeValue[ip] !== undefined) {
+    return res.json({ value: remoteImeValue[ip] });
+  }
+  res.json({ value: "" });
 });
 
 // ── Volume polling fallback ───────────────────────────────────────────────────

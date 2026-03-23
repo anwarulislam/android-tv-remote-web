@@ -8,6 +8,7 @@ import {
 
 export interface RemoteScreenProps {
     tvName: string;
+    ip: string;
     volume: number;
     volumeMax: number;
     muted: boolean;
@@ -16,6 +17,7 @@ export interface RemoteScreenProps {
     sendText: (text: string) => Promise<void>;
     imeOpen: boolean;
     imeLabel: string;
+    imeValue: string;
     setImeOpen: (open: boolean) => void;
     onSettingsClick: () => void;
 }
@@ -46,6 +48,7 @@ const IconBtn = ({
 
 export function RemoteScreen({
     tvName,
+    ip,
     volume,
     volumeMax,
     muted,
@@ -54,6 +57,7 @@ export function RemoteScreen({
     sendText,
     imeOpen,
     imeLabel,
+    imeValue,
     setImeOpen,
     onSettingsClick,
 }: RemoteScreenProps) {
@@ -62,13 +66,13 @@ export function RemoteScreen({
     const [imeSending, setImeSending] = useState(false);
     const imeInputRef = useRef<HTMLInputElement>(null);
 
-    // Focus the IME input when it opens
+    // Focus the IME input when it opens and initialize with existing value
     useEffect(() => {
         if (imeOpen) {
-            setImeText('');
+            setImeText(imeValue);
             setTimeout(() => imeInputRef.current?.focus(), 80);
         }
-    }, [imeOpen]);
+    }, [imeOpen, imeValue]);
 
     // ── Global keyboard shortcut handler ──────────────────
     useEffect(() => {
@@ -134,8 +138,19 @@ export function RemoteScreen({
     }
 
     // ── Open modal directly (for manual keyboard button press) ──
-    function openIme() {
-        setImeText('');
+    async function openIme() {
+        // Fetch current IME value from server before opening
+        try {
+            const res = await fetch('http://127.0.0.1:59999/ime-value?ip=' + encodeURIComponent(ip));
+            if (res.ok) {
+                const data = await res.json();
+                setImeText(data.value || '');
+            } else {
+                setImeText('');
+            }
+        } catch {
+            setImeText('');
+        }
         setImeOpen(true);
     }
 
@@ -183,7 +198,6 @@ export function RemoteScreen({
                                 value={imeText}
                                 onChange={(e) => {
                                     setImeText(e.target.value);
-                                    sendText(e.target.value);
                                 }}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') { e.preventDefault(); handleImeSend(); }
