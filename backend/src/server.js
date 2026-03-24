@@ -6,7 +6,7 @@ import remoteRouter from "./routes/remote.js";
 
 const app = express();
 
-// Allow requests from tv.anwar.bd and localhost (dev)
+// Allow requests from tv.anwar.bd, localhost (dev), and Tauri app (tauri://)
 app.use(
   cors({
     origin: [
@@ -15,6 +15,8 @@ app.use(
       "http://localhost:5173",
       "http://localhost:3000",
       "http://127.0.0.1:5173",
+      "tauri://localhost",
+      "http://tauri.localhost",
     ],
     credentials: true,
   }),

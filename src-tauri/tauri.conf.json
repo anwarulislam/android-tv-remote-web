@@ -27,12 +27,7 @@
     ],
     "security": {
       "csp": null
-    },
-    "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": true
-    },
-    "macOSPrivateApi": true
+    }
   },
   "bundle": {
     "active": true,
@@ -46,7 +41,12 @@
     ],
     "shortDescription": "Android TV Remote Control",
     "longDescription": "A desktop application for controlling Android TVs through a web interface.",
-    "category": "Utilities"
+    "category": "Utilities",
+    "resources": [
+      "../backend/src/**/*",
+      "../backend/lib/**/*",
+      "../backend/package.json"
+    ]
   },
   "plugins": {
     "shell": {
