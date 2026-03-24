@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useAndroidTV } from "../hooks/useAndroidTV";
 
 /* ── Small helpers ─────────────────────────────────────── */
@@ -39,13 +40,14 @@ const IconBtn = ({
   title?: string;
   className?: string;
 }) => (
-  <button
+  <Button
     onClick={onClick}
     title={title}
-    className={`action-btn flex items-center justify-center rounded-xl cursor-pointer border-none focus:outline-none ${className}`}
+    variant="ghost"
+    className={`action-btn cursor-pointer border-none focus:outline-none ${className}`}
   >
     {children}
-  </button>
+  </Button>
 );
 
 /* ── Main component ────────────────────────────────────── */
@@ -53,7 +55,6 @@ const IconBtn = ({
 export function RemoteScreen() {
   const {
     tvName,
-    ip,
     volume,
     volumeMax,
     muted,
@@ -297,8 +298,9 @@ export function RemoteScreen() {
               }}
               onSelect={(e) => {
                 // Track cursor movement by sending current text with updated cursor positions
-                const cursorStart = e.target.selectionStart;
-                const cursorEnd = e.target.selectionEnd;
+                const target = e.target as HTMLTextAreaElement;
+                const cursorStart = target.selectionStart;
+                const cursorEnd = target.selectionEnd;
                 // Send the current text with new cursor positions to update TV cursor
                 sendTextWithCursor(imeText, cursorStart, cursorEnd);
               }}
