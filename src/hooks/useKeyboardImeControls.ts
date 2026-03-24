@@ -185,6 +185,8 @@ export function useKeyboardImeControls() {
       }
 
       if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
         closeIme();
       }
     },
