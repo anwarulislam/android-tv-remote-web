@@ -22,6 +22,12 @@ app.use(
 
 app.use(express.json());
 
+// Log all incoming requests for debugging
+app.use((req, res, next) => {
+  console.log(`[Server] ${req.method} ${req.url} - Body: ${JSON.stringify(req.body)}`);
+  next();
+});
+
 app.use("/discover", discoverRouter);
 app.use("/", remoteRouter);
 

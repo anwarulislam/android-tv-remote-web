@@ -61,7 +61,6 @@ export function RemoteScreen() {
     sendKey,
     sendText,
     sendTextWithCursor,
-    sendCursorPosition,
     sendShortcut,
     imeOpen,
     imeLabel,
@@ -76,7 +75,7 @@ export function RemoteScreen() {
   const [imeSending, setImeSending] = useState(false);
   const imeInputRef = useRef<HTMLInputElement>(null);
   const isTypingRef = useRef(false);
-  const sendTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sendTimeoutRef = useRef<any | null>(null);
 
   // Focus the IME input when it opens and initialize with existing value
   useEffect(() => {
@@ -219,7 +218,8 @@ export function RemoteScreen() {
 
   const onSettingsClick = () => initApp();
 
-  const volPct = volumeMax > 0 ? Math.round((volume / volumeMax) * 100) : volume;
+  const volPct =
+    volumeMax > 0 ? Math.round((volume / volumeMax) * 100) : volume;
 
   return (
     <div className="flex justify-center items-center min-h-screen w-[min(100vw,420px)] mx-auto bg-zinc-950 p-4 select-none">
@@ -296,10 +296,11 @@ export function RemoteScreen() {
                 sendTextWithCursor(imeText, cursorStart, cursorEnd);
               }}
               onSelect={(e) => {
-                // Track cursor movement without text change
+                // Track cursor movement by sending current text with updated cursor positions
                 const cursorStart = e.target.selectionStart;
                 const cursorEnd = e.target.selectionEnd;
-                sendCursorPosition(cursorStart, cursorEnd);
+                // Send the current text with new cursor positions to update TV cursor
+                sendTextWithCursor(imeText, cursorStart, cursorEnd);
               }}
               onKeyDown={(e) => {
                 // Handle Ctrl/Cmd shortcuts
@@ -318,8 +319,29 @@ export function RemoteScreen() {
 
                   const shortcut = shortcutMap[e.key.toLowerCase()];
                   if (shortcut) {
-                    e.preventDefault();
-                    sendShortcut(shortcut);
+                    // For SELECT_ALL, let default happen AND send to TV
+                    // For clipboard operations, only let default happen (textarea clipboard)
+                    // For UNDO/REDO, send to TV without preventing default
+                    if (shortcut === "SELECT_ALL") {
+                      // Let default select all happen in textarea, then sync to TV
+                      setTimeout(() => {
+                        const start = imeInputRef.current?.selectionStart || 0;
+                        const end = imeInputRef.current?.selectionEnd || 0;
+                        sendShortcut(shortcut);
+                        sendTextWithCursor(imeText, start, end);
+                      }, 10);
+                    } else if (
+                      shortcut === "COPY" ||
+                      shortcut === "PASTE" ||
+                      shortcut === "CUT"
+                    ) {
+                      // Let default clipboard behavior work in textarea
+                      // Also send to TV for TV-side operations
+                      setTimeout(() => sendShortcut(shortcut), 10);
+                    } else {
+                      // UNDO/REDO - send to TV, don't prevent default
+                      setTimeout(() => sendShortcut(shortcut), 10);
+                    }
                     return;
                   }
                 }
@@ -440,8 +462,10 @@ export function RemoteScreen() {
             <div
               className="absolute inset-0 rounded-full"
               style={{
-                background: "radial-gradient(circle at 35% 30%, #2a2a38, #111115)",
-                boxShadow: "0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
+                background:
+                  "radial-gradient(circle at 35% 30%, #2a2a38, #111115)",
+                boxShadow:
+                  "0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
               }}
             />
 

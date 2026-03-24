@@ -18,7 +18,8 @@ export type DeviceState =
   | "needs_pin"
   | "connected"
   | "select_saved"
-  | "no_server";
+  | "no_server"
+  | "connection_timeout";
 
 export type Shortcut =
   | "SELECT_ALL"
@@ -62,6 +63,7 @@ interface AndroidTVContextValue {
   discoverTV: () => Promise<void>;
   connect: (ip: string, name: string) => Promise<void>;
   submitPin: () => Promise<void>;
+  retryConnection: () => Promise<void>;
 
   // Remote actions
   sendKey: (key: string) => Promise<void>;
@@ -71,7 +73,6 @@ interface AndroidTVContextValue {
     cursorStart: number,
     cursorEnd: number,
   ) => Promise<void>;
-  sendCursorPosition: (start: number, end: number) => Promise<void>;
   sendShortcut: (shortcut: Shortcut) => Promise<void>;
   getImeValue: () => Promise<string>;
 }
@@ -98,6 +99,8 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
   const [imeValue, setImeValue] = useState("");
 
   const sseRef = useRef<EventSource | null>(null);
+  const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDeviceRef = useRef<Device | null>(null);
 
   // SSE connection
   useEffect(() => {
@@ -208,6 +211,11 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
       if (data.status === "needs_pin") {
         setDeviceState("needs_pin");
       } else if (data.status === "connected") {
+        // Clear timeout when connection succeeds
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
         setDeviceState("connected");
       } else {
         throw new Error("Unknown connection status");
@@ -219,6 +227,12 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
 
   const initApp = useCallback(async () => {
     setDeviceState("discovering");
+
+    // Clear any existing timeout
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
 
     const serverData = await checkServerAlive();
     if (!serverData) {
@@ -233,7 +247,20 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
       setDeviceState("select_saved");
 
       if (sDevs.length === 1) {
+        // Store the device for retry and start connection with timeout
+        pendingDeviceRef.current = sDevs[0];
         connect(sDevs[0].ip, sDevs[0].name);
+
+        // Set 5-second timeout for connection
+        connectionTimeoutRef.current = setTimeout(() => {
+          // Only show timeout if still in pairing state (not connected yet)
+          setDeviceState((currentState) => {
+            if (currentState === "pairing" || currentState === "select_saved") {
+              return "connection_timeout";
+            }
+            return currentState;
+          });
+        }, 5000);
       }
     } else {
       discoverTV();
@@ -248,11 +275,34 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ ip, pin }),
       });
       if (!res.ok) throw new Error("Pairing failed");
+      // Clear timeout when pairing succeeds
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
       setDeviceState("connected");
     } catch {
       setDeviceState("disconnected");
     }
   }, [ip, pin]);
+
+  const retryConnection = useCallback(async () => {
+    const device = pendingDeviceRef.current;
+    if (device) {
+      setDeviceState("pairing");
+      connect(device.ip, device.name);
+
+      // Set 5-second timeout for retry
+      connectionTimeoutRef.current = setTimeout(() => {
+        setDeviceState((currentState) => {
+          if (currentState === "pairing") {
+            return "connection_timeout";
+          }
+          return currentState;
+        });
+      }, 5000);
+    }
+  }, [connect]);
 
   const sendKey = useCallback(
     async (key: string) => {
@@ -282,17 +332,6 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip, text, cursorStart, cursorEnd }),
-      }).catch(console.error);
-    },
-    [ip],
-  );
-
-  const sendCursorPosition = useCallback(
-    async (start: number, end: number) => {
-      await fetch(`${API}/move-cursor`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ip, start, end }),
       }).catch(console.error);
     },
     [ip],
@@ -349,10 +388,10 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
     discoverTV,
     connect,
     submitPin,
+    retryConnection,
     sendKey,
     sendText,
     sendTextWithCursor,
-    sendCursorPosition,
     sendShortcut,
     getImeValue,
   };

@@ -1,9 +1,11 @@
 import {
   ChevronRight,
+  Home,
   KeyRound,
   Loader2,
   RefreshCw,
   ServerOff,
+  Timer,
   Tv2,
   Wifi,
   WifiOff,
@@ -24,6 +26,7 @@ function StateTitle({ deviceState, tvName }: { deviceState: string; tvName: stri
   if (deviceState === "needs_pin") return <>Enter pairing code</>;
   if (deviceState === "discovered") return <>Choose your TV</>;
   if (deviceState === "select_saved") return <>Your devices</>;
+  if (deviceState === "connection_timeout") return <>Connection Timeout</>;
   return <>Connect manually</>;
 }
 
@@ -34,6 +37,7 @@ function StateSubtitle({ deviceState }: { deviceState: string }) {
   if (deviceState === "needs_pin") return "Enter the 6-digit code shown on your TV screen";
   if (deviceState === "discovered") return "Select a device to begin";
   if (deviceState === "select_saved") return "Tap to reconnect instantly";
+  if (deviceState === "connection_timeout") return "Couldn't connect to your TV";
   return "Type the IP address of your TV";
 }
 
@@ -76,6 +80,7 @@ export function ConnectionScreen() {
     connect,
     discoverTV,
     submitPin,
+    retryConnection,
     setDeviceState,
   } = useAndroidTV();
 
@@ -169,6 +174,32 @@ export function ConnectionScreen() {
               <div className="flex flex-col items-center gap-5 py-6">
                 <Loader2 size={40} className="text-indigo-400 animate-spin" />
                 <p className="text-white/40 text-sm">Hold on while we connect securely</p>
+              </div>
+            )}
+
+            {/* ── Connection Timeout ── */}
+            {deviceState === "connection_timeout" && (
+              <div className="flex flex-col items-center gap-5 py-6">
+                <Timer size={48} className="text-orange-400/80 mb-2" />
+                <p className="text-white/70 text-sm text-center">
+                  Your TV isn't responding. It might be turned off or not on the same network.
+                </p>
+                <div className="flex gap-3 w-full">
+                  <button
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-4 rounded-xl cursor-pointer transition-colors border-none text-sm flex items-center justify-center gap-2"
+                    onClick={retryConnection}
+                  >
+                    <RefreshCw size={16} />
+                    Retry
+                  </button>
+                  <button
+                    className="flex-1 bg-transparent border border-white/15 text-white/70 hover:text-white hover:bg-white/5 font-semibold py-4 rounded-xl cursor-pointer transition-colors text-sm flex items-center justify-center gap-2"
+                    onClick={discoverTV}
+                  >
+                    <Home size={16} />
+                    Go to Home
+                  </button>
+                </div>
               </div>
             )}
 

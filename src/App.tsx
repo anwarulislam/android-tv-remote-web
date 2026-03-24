@@ -14,6 +14,7 @@ function AppContent() {
     "discovered",
     "select_saved",
     "no_server",
+    "connection_timeout",
   ].includes(deviceState);
 
   return isConnectionScreen ? <ConnectionScreen /> : <RemoteScreen />;
