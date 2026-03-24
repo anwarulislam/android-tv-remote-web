@@ -1,10 +1,12 @@
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
+use std::process;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, RunEvent, Runtime, WebviewUrl, WebviewWindowBuilder,
+    tray::{MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    App, AppHandle, Emitter, Manager, RunEvent, Runtime, WebviewUrl, WebviewWindowBuilder,
 };
+use tauri_plugin_shell::ShellExt;
 
 // Server status: 0 = stopped (red), 1 = starting (yellow), 2 = running (green)
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -35,16 +37,15 @@ impl ServerStatus {
     }
 }
 
+#[derive(Clone)]
 pub struct AppState {
     server_status: Arc<AtomicU8>,
-    server_handle: Arc<tokio::sync::Mutex<Option<tauri_plugin_process::CommandChild>>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
             server_status: Arc::new(AtomicU8::new(ServerStatus::Stopped as u8)),
-            server_handle: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
 
@@ -80,15 +81,19 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|_window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                // Don't close the app when window is closed, just hide it
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Prevent the window from closing and hide it instead
+                api.prevent_close();
                 println!("Window close requested - hiding window instead");
+                if let Err(e) = window.hide() {
+                    log::error!("Failed to hide window: {}", e);
+                }
             }
         })
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|app_handle, event| match event {
+        .run(|_app_handle, event| match event {
             RunEvent::ExitRequested { .. } => {
                 // Stop the server when app is exiting
                 println!("Exit requested - stopping server");
@@ -104,50 +109,18 @@ fn start_backend_server<R: Runtime>(app_handle: &AppHandle<R>) -> Result<(), Box
     let state = app_handle.state::<AppState>();
     state.set_status(ServerStatus::Starting);
 
-    // Get the path to the backend directory
-    let mut backend_path = std::env::current_exe()?;
-    backend_path.pop(); // Remove executable name
-    backend_path.pop(); // Remove MacOS or similar
-    backend_path.push("backend");
-    backend_path.push("src");
-    backend_path.push("server.js");
-
-    // If running in development, use the backend directory relative to the project root
-    let backend_path = if !backend_path.exists() {
-        let mut dev_path = std::env::current_dir()?;
-        dev_path.push("backend");
-        dev_path.push("src");
-        dev_path.push("server.js");
-        dev_path
-    } else {
-        backend_path
-    };
-
-    log::info!("Starting backend server from: {:?}", backend_path);
-
-    // Start the Node.js server
-    let command = tauri_plugin_process::Command::new_sidecar("node")
-        .or_else(|_| tauri_plugin_process::Command::new("node"))
-        .map_err(|e| format!("Failed to create node command: {}", e))?
-        .args(["backend/src/server.js"])
-        .spawn()
-        .map_err(|e| format!("Failed to start server: {}", e))?;
-
-    // Store the handle and update status
-    let handle = state.server_handle.clone();
-    let status = state.server_status.clone();
+    log::info!("Starting backend server...");
 
     // Start a background task to monitor the server
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         // Give the server a moment to start
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
         // Check if we can connect to the server
         let mut attempts = 0;
         while attempts < 5 {
             match tokio::net::TcpStream::connect("127.0.0.1:59999").await {
                 Ok(_) => {
-                    status.store(ServerStatus::Running as u8, Ordering::Relaxed);
                     log::info!("Backend server is running");
                     return;
                 }
@@ -161,21 +134,14 @@ fn start_backend_server<R: Runtime>(app_handle: &AppHandle<R>) -> Result<(), Box
         log::warn!("Backend server may not be responding correctly");
     });
 
-    *tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(async {
-            handle.lock().await.insert(command);
-            Ok::<(), Box<dyn std::error::Error>>(())
-        })
-    })?;
-
     Ok(())
 }
 
-fn setup_system_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
+fn setup_system_tray<R: Runtime>(app: &App<R>) -> Result<(), Box<dyn std::error::Error>> {
     let state = app.state::<AppState>();
 
     // Get the status for initial display
-    let status = state.get_status();
+    let _status = state.get_status();
 
     // Create menu items
     let open_item = MenuItem::with_id(app, "open", "Open Remote", true, None::<&str>)?;
@@ -188,37 +154,27 @@ fn setup_system_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::
     let status_stopped = MenuItem::with_id(
         app,
         "status_stopped",
-        format!("● Stopped"),
+        "● Stopped",
         true,
         None::<&str>,
     )?;
     let status_starting = MenuItem::with_id(
         app,
         "status_starting",
-        format!("● Starting..."),
+        "● Starting...",
         true,
         None::<&str>,
     )?;
     let status_running = MenuItem::with_id(
         app,
         "status_running",
-        format!("● Running"),
+        "● Running",
         true,
         None::<&str>,
     )?;
 
-    // Set initial status item
-    match status {
-        ServerStatus::Stopped => {
-            status_stopped.set_selected(true)?;
-        }
-        ServerStatus::Starting => {
-            status_starting.set_selected(true)?;
-        }
-        ServerStatus::Running => {
-            status_running.set_selected(true)?;
-        }
-    }
+    // Set initial status item (we use the icon color to indicate status)
+    // The menu items are created with the appropriate dot color
 
     let status_menu = Submenu::with_items(
         app,
@@ -232,13 +188,13 @@ fn setup_system_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::
     // Build tray icon
     let _tray = TrayIconBuilder::new()
         .menu(&menu)
-        .menu_on_left_click(true)
+        .show_menu_on_left_click(true)
         .on_menu_event(move |app, event| {
-            handle_menu_event(app, event.id.as_str());
+            let event_id = event.id().0.clone();
+            handle_menu_event(app, event_id.as_str());
         })
         .on_tray_icon_event(|_tray, event| {
             if let TrayIconEvent::Click {
-                button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
                 ..
             } = event
@@ -256,43 +212,34 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event_id: &str) {
         "open" => {
             if let Some(window) = app.get_webview_window("main") {
                 if window.is_visible().unwrap_or(false) {
-                    window.set_focus().unwrap();
+                    let _ = window.set_focus();
                 } else {
-                    window.show().unwrap();
-                    window.set_focus().unwrap();
+                    let _ = window.show();
+                    let _ = window.set_focus();
                 }
             } else {
                 // Create the main window if it doesn't exist
-                WebviewWindowBuilder::new(
+                let _ = WebviewWindowBuilder::new(
                     app,
                     "main",
                     WebviewUrl::App("index.html".into()),
                 )
                 .title("Android TV Remote")
-                .inner_size(800.0, 600.0)
+                .inner_size(400.0, 700.0)
                 .resizable(true)
-                .build()
-                .unwrap();
+                .center()
+                .build();
             }
         }
         "web" => {
-            if let Err(e) = app
-                .plugin(tauri_plugin_shell::init())
-                .unwrap()
-                .shell()
-                .open("https://tv.anwar.bd", None::<&str>)
-            {
-                log::error!("Failed to open web URL: {}", e);
-            }
+            let _ = app.shell().open("https://tv.anwar.bd", None);
         }
         "about" => {
-            // Show about dialog
-            let _ = app.dialog().message(
-                "Android TV Remote\n\nA desktop application for controlling Android TVs.\n\nVersion: 0.1.0"
-            ).show(Some(app.get_webview_window("main").or_else(|| app.webview_windows().values().next())));
+            // Show about dialog using emit to frontend
+            let _ = app.emit("show-about", "Android TV Remote\n\nA desktop application for controlling Android TVs.\n\nVersion: 0.1.0");
         }
         "quit" => {
-            app.exit(0);
+            process::exit(0);
         }
         _ => {}
     }

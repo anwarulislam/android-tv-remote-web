@@ -11,4 +11,8 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Ignore Tauri API during web builds - these are only available in desktop
+  optimizeDeps: {
+    exclude: ["@tauri-apps/api", "@tauri-apps/plugin-shell"],
+  },
 });

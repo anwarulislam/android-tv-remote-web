@@ -1,7 +1,11 @@
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  getApiBaseUrl,
+} from "../lib/tauri-utils";
 
-const API = "http://127.0.0.1:59999";
+// Dynamic API base URL based on environment
+const getApiUrl = () => getApiBaseUrl();
 
 export type DeviceState =
   | "discovering"
@@ -96,11 +100,11 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
 
     sseRef.current?.close();
 
-    const es = new EventSource(`${API}/events?ip=${encodeURIComponent(ip)}`);
+    const es = new EventSource(`${getApiUrl()}/events?ip=${encodeURIComponent(ip)}`);
 
     console.log(
       "[Frontend] SSE connection opened to",
-      `${API}/events?ip=${encodeURIComponent(ip)}`,
+      `${getApiUrl()}/events?ip=${encodeURIComponent(ip)}`,
     );
 
     es.addEventListener("volume", (e) => {
@@ -159,7 +163,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
   // API functions
   const checkServerAlive = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/saved-devices`);
+      const res = await fetch(`${getApiUrl()}/saved-devices`);
       if (res.ok) {
         return await res.json();
       }
@@ -178,7 +182,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const res = await fetch(`${API}/discover`);
+      const res = await fetch(`${getApiUrl()}/discover`);
       const data = await res.json();
       if (data.devices && data.devices.length > 0) {
         setDiscoveredDevices(data.devices);
@@ -197,7 +201,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
     setTvName(name);
     setDeviceState("pairing");
     try {
-      const res = await fetch(`${API}/connect`, {
+      const res = await fetch(`${getApiUrl()}/connect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip: targetIp, name }),
@@ -265,7 +269,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
 
   const submitPin = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/pair`, {
+      const res = await fetch(`${getApiUrl()}/pair`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip, pin }),
@@ -302,7 +306,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
 
   const sendKey = useCallback(
     async (key: string) => {
-      await fetch(`${API}/send-key`, {
+      await fetch(`${getApiUrl()}/send-key`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip, keycode: key }),
@@ -313,7 +317,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
 
   const sendText = useCallback(
     async (text: string) => {
-      await fetch(`${API}/send-text`, {
+      await fetch(`${getApiUrl()}/send-text`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip, text }),
@@ -324,7 +328,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
 
   const sendTextWithCursor = useCallback(
     async (text: string, cursorStart: number, cursorEnd: number) => {
-      await fetch(`${API}/send-text`, {
+      await fetch(`${getApiUrl()}/send-text`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip, text, cursorStart, cursorEnd }),
@@ -335,7 +339,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
 
   const sendShortcut = useCallback(
     async (shortcut: Shortcut) => {
-      await fetch(`${API}/send-shortcut`, {
+      await fetch(`${getApiUrl()}/send-shortcut`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip, shortcut }),
@@ -346,7 +350,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
 
   const getImeValue = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/ime-value?ip=${encodeURIComponent(ip)}`);
+      const res = await fetch(`${getApiUrl()}/ime-value?ip=${encodeURIComponent(ip)}`);
       if (res.ok) {
         const data = await res.json();
         return {
@@ -363,7 +367,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
 
   const moveCursor = useCallback(
     async (cursorStart: number, cursorEnd: number) => {
-      await fetch(`${API}/move-cursor`, {
+      await fetch(`${getApiUrl()}/move-cursor`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip, start: cursorStart, end: cursorEnd }),
@@ -374,7 +378,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
 
   const checkImeOnConnect = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/ime-state?ip=${encodeURIComponent(ip)}`);
+      const res = await fetch(`${getApiUrl()}/ime-state?ip=${encodeURIComponent(ip)}`);
       if (res.ok) {
         const data = await res.json();
         // If an input is focused, open the modal with current state
