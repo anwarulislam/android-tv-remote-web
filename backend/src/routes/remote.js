@@ -2,7 +2,10 @@ import fs from "node:fs";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import { AndroidRemote, RemoteDirection } from "../../lib/androidtv-remote/index.js";
+import {
+  AndroidRemote,
+  RemoteDirection,
+} from "../../lib/androidtv-remote/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -76,8 +79,10 @@ router.post("/connect", async (req, res) => {
 
   try {
     if (remotes[ip] && remotesState[ip]) {
-      if (remotesState[ip] === "pairing") return res.json({ status: "needs_pin" });
-      if (remotesState[ip] === "connected") return res.json({ status: "connected" });
+      if (remotesState[ip] === "pairing")
+        return res.json({ status: "needs_pin" });
+      if (remotesState[ip] === "connected")
+        return res.json({ status: "connected" });
     }
 
     let certOption;
@@ -108,7 +113,9 @@ router.post("/connect", async (req, res) => {
     remote.on("current_app", (app) => broadcast("current_app", { ip, app }));
 
     remote.on("ime_show", (data) => {
-      console.log(`[Server] ime_show EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`);
+      console.log(
+        `[Server] ime_show EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`,
+      );
       remoteImeLabel[ip] = data.label || "";
       if (data.value !== undefined) remoteImeValue[ip] = data.value;
       // Store counterField, start, end for text injection
@@ -121,7 +128,9 @@ router.post("/connect", async (req, res) => {
 
     // Handle ime_key_inject event from patched library (contains appPackage + textFieldStatus)
     remote.on("ime_key_inject", (data) => {
-      console.log(`[Server] ime_key_inject EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`);
+      console.log(
+        `[Server] ime_key_inject EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`,
+      );
       if (!remoteImeInfo[ip]) remoteImeInfo[ip] = {};
       remoteImeInfo[ip].appPackage = data.appPackage || "";
       remoteImeInfo[ip].counterField = data.counterField || 0;
@@ -141,15 +150,19 @@ router.post("/connect", async (req, res) => {
     });
 
     remote.on("ime_batch_edit", (data) => {
-      console.log(`[Server] ime_batch_edit EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`);
+      console.log(
+        `[Server] ime_batch_edit EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`,
+      );
       // Extract insert text if available
       const insertText = data.edit_info?.insert;
       if (insertText !== undefined) {
         if (typeof insertText === "number") {
-          // Convert to string if needed
-          remoteImeValue[ip] = (remoteImeValue[ip] || "") + String(insertText);
+          // Single character code - append it
+          remoteImeValue[ip] =
+            (remoteImeValue[ip] || "") + String.fromCharCode(insertText);
         } else if (typeof insertText === "string") {
-          remoteImeValue[ip] = (remoteImeValue[ip] || "") + insertText;
+          // Full text - replace the entire value
+          remoteImeValue[ip] = insertText;
         }
         broadcast("ime_update", { ip, value: remoteImeValue[ip] || "" });
       } else {
@@ -200,7 +213,8 @@ router.post("/connect", async (req, res) => {
 router.post("/pair", async (req, res) => {
   const { ip, pin } = req.body;
   const remote = remotes[ip];
-  if (!remote) return res.status(400).json({ error: "No connection for this IP" });
+  if (!remote)
+    return res.status(400).json({ error: "No connection for this IP" });
   try {
     remote.sendCode(pin);
     res.json({ status: "success" });
@@ -220,16 +234,18 @@ router.post("/send-key", (req, res) => {
     DOWN: 20,
     LEFT: 21,
     RIGHT: 22,
-    ENTER: 23,
+    ENTER: 23, // DPAD_CENTER (navigation)
+    DPAD_CENTER: 23,
+    TEXT_ENTER: 66, // KEYCODE_ENTER (for text input/IME)
     BACK: 4,
     HOME: 3,
     POWER: 26,
-    VOL_UP: 24,
-    VOL_DOWN: 25,
+    VOL_UP: 24, // Shift + Arrow UP
+    VOL_DOWN: 25, // Shift + Arrow DOWN
     MUTE: 164,
-    PLAY_PAUSE: 85,
-    NEXT: 87,
-    PREV: 88,
+    PLAY_PAUSE: 85, // Space
+    NEXT: 87, // CMD + Arrow Right
+    PREV: 88, // CMD + Arrow Left
     REWIND: 89,
     FF: 90,
     MENU: 82,
@@ -251,35 +267,43 @@ router.post("/send-text", async (req, res) => {
   const remote = remotes[ip];
   if (!remote) return res.status(400).json({ error: "Not connected" });
 
-  console.log(`[Server] send-text: ip=${ip}, text="${text}", cursor=[${cursorStart},${cursorEnd}]`);
+  console.log(
+    `[Server] send-text: ip=${ip}, text="${text}", cursor=[${cursorStart},${cursorEnd}]`,
+  );
   console.log(`[Server] remoteImeInfo[${ip}]:`, remoteImeInfo[ip]);
 
   // Store current text for diff calculation
   remoteImeValue[ip] = text;
 
-  // First try direct IME injection if we have the required info
+  // First try direct IME Batch Edit if we have the required info
   const info = remoteImeInfo[ip];
-  if (info?.appPackage) {
+  if (info?.counterField !== undefined) {
     try {
-      // Increment counter for each send
-      const counter = (info.counterField || 0) + 1;
-      remoteImeInfo[ip].counterField = counter;
+      // Initialize imeCounter if not exists
+      if (!remoteImeInfo[ip].imeCounter) {
+        remoteImeInfo[ip].imeCounter = 0;
+      }
 
-      console.log(`[Server] Using direct IME inject: app=${info.appPackage}, counter=${counter}`);
-      // Use the patched library's sendImeText method with textFieldStatus
-      remote.sendImeText(info.appPackage, {
-        counterField: counter,
-        value: text,
-        start: cursorStart,
-        end: cursorEnd,
-      });
+      // Increment ime counter for each batch edit
+      const imeCounter = ++remoteImeInfo[ip].imeCounter;
+      const fieldCounter = info.counterField;
+
+      console.log(
+        `[Server] Using RemoteImeBatchEdit: imeCounter=${imeCounter}, fieldCounter=${fieldCounter}, text="${text}"`,
+      );
+
+      // Send the full text using RemoteImeBatchEdit
+      remote.sendImeBatchEdit(imeCounter, fieldCounter, text);
+
       remoteImeInfo[ip].lastSentText = text;
       return res.json({ status: "ok" });
     } catch (e) {
-      console.warn(`[Server] Direct IME inject failed: ${e.message}`);
+      console.warn(`[Server] RemoteImeBatchEdit failed: ${e.message}`);
     }
   } else {
-    console.warn(`[Server] No IME info available, falling back to key simulation`);
+    console.warn(
+      `[Server] No IME info available, falling back to key simulation`,
+    );
   }
 
   // Fallback: keycode simulation (for when direct IME injection is not available)
@@ -289,7 +313,8 @@ router.post("/send-text", async (req, res) => {
     const lower = ch.toLowerCase();
     if (lower >= "a" && lower <= "z")
       return { keycode: 29 + (lower.charCodeAt(0) - 97), shift: ch !== lower };
-    if (ch >= "0" && ch <= "9") return { keycode: 7 + (ch.charCodeAt(0) - 48), shift: false };
+    if (ch >= "0" && ch <= "9")
+      return { keycode: 7 + (ch.charCodeAt(0) - 48), shift: false };
     const s = {
       " ": { keycode: 62, shift: false },
       ".": { keycode: 56, shift: false },
@@ -333,6 +358,10 @@ router.post("/send-text", async (req, res) => {
       }
     } else if (text.length < lastSent.length) {
       // User deleted characters - send backspace for each deleted char
+      // NOTE: This approach doesn't sync cursor properly. For proper sync, we should use
+      // RemoteImeBatchEdit with empty insert and proper cursor positioning.
+      // However, the proper way to handle deletion is to send the new full text
+      // with RemoteImeBatchEdit, which will replace the entire field content.
       const deleteCount = lastSent.length - text.length;
       for (let i = 0; i < deleteCount; i++) {
         remote.sendKey(67, RemoteDirection.SHORT); // KEYCODE_DEL (backspace)
@@ -371,18 +400,45 @@ router.post("/send-text", async (req, res) => {
   }
 });
 
-// ── Move cursor (send arrow keys) ──────────────────────────────────────────────────
+// ── Move cursor (send cursor position update) ──────────────────────────────────────────
 router.post("/move-cursor", async (req, res) => {
   const { ip, start, end } = req.body;
   const remote = remotes[ip];
   if (!remote) return res.status(400).json({ error: "Not connected" });
 
   const info = remoteImeInfo[ip];
-  const currentEnd = info?.cursorEnd || 0;
-
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   try {
+    // Try using RemoteImeKeyInject for precise cursor positioning
+    if (info?.appPackage && info.counterField !== undefined) {
+      const currentValue = remoteImeValue[ip] || "";
+
+      // Increment counter for each cursor update
+      const counter = (info.counterField || 0) + 1;
+      remoteImeInfo[ip].counterField = counter;
+
+      console.log(
+        `[Server] move-cursor using RemoteImeKeyInject: app=${info.appPackage}, start=${start}, end=${end}`,
+      );
+
+      remote.sendImeCursorUpdate(info.appPackage, {
+        counterField: counter,
+        value: currentValue,
+        start: start,
+        end: end,
+      });
+
+      // Update stored cursor position
+      remoteImeInfo[ip].cursorStart = start;
+      remoteImeInfo[ip].cursorEnd = end;
+
+      return res.json({ status: "ok" });
+    }
+
+    // Fallback: Use arrow keys if IME info is not available
+    const currentEnd = info?.cursorEnd || 0;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
     if (start < currentEnd) {
       // Move cursor left - send LEFT key events
       const diff = currentEnd - start;
@@ -459,9 +515,14 @@ router.post("/send-shortcut", async (req, res) => {
 router.get("/ime-value", (req, res) => {
   const ip = req.query.ip;
   if (ip && remoteImeValue[ip] !== undefined) {
-    return res.json({ value: remoteImeValue[ip] });
+    const info = remoteImeInfo[ip] || {};
+    return res.json({
+      value: remoteImeValue[ip],
+      start: info.cursorStart || 0,
+      end: info.cursorEnd || 0,
+    });
   }
-  res.json({ value: "" });
+  res.json({ value: "", start: 0, end: 0 });
 });
 
 // ── Volume polling fallback ───────────────────────────────────────────────────

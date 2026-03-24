@@ -56,6 +56,8 @@ interface AndroidTVContextValue {
   imeOpen: boolean;
   imeLabel: string;
   imeValue: string;
+  imeCursorStart: number;
+  imeCursorEnd: number;
   setImeOpen: (open: boolean) => void;
 
   // Connection actions
@@ -73,8 +75,9 @@ interface AndroidTVContextValue {
     cursorStart: number,
     cursorEnd: number,
   ) => Promise<void>;
+  moveCursor: (cursorStart: number, cursorEnd: number) => Promise<void>;
   sendShortcut: (shortcut: Shortcut) => Promise<void>;
-  getImeValue: () => Promise<string>;
+  getImeValue: () => Promise<{ value: string; start: number; end: number }>;
 }
 
 const AndroidTVContext = createContext<AndroidTVContextValue | null>(null);
@@ -97,6 +100,8 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
   const [imeOpen, setImeOpen] = useState(false);
   const [imeLabel, setImeLabel] = useState("");
   const [imeValue, setImeValue] = useState("");
+  const [imeCursorStart, setImeCursorStart] = useState(0);
+  const [imeCursorEnd, setImeCursorEnd] = useState(0);
 
   const sseRef = useRef<EventSource | null>(null);
   const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,8 +137,10 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
         if (data.ip !== ip) return;
         setImeLabel(data.label || "");
         setImeValue(data.value || "");
+        setImeCursorStart(data.start ?? 0);
+        setImeCursorEnd(data.end ?? 0);
         setImeOpen(true);
-        console.log("[Frontend] Opening IME modal with value:", data.value);
+        console.log("[Frontend] Opening IME modal with value:", data.value, "cursor:", data.start, data.end);
       } catch (err) {
         console.error("[Frontend] Error parsing ime_show:", err);
       }
@@ -353,13 +360,28 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`${API}/ime-value?ip=${encodeURIComponent(ip)}`);
       if (res.ok) {
         const data = await res.json();
-        return data.value || "";
+        return {
+          value: data.value || "",
+          start: data.start || 0,
+          end: data.end || 0,
+        };
       }
     } catch {
       // ignore
     }
-    return "";
+    return { value: "", start: 0, end: 0 };
   }, [ip]);
+
+  const moveCursor = useCallback(
+    async (cursorStart: number, cursorEnd: number) => {
+      await fetch(`${API}/move-cursor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip, start: cursorStart, end: cursorEnd }),
+      }).catch(console.error);
+    },
+    [ip],
+  );
 
   // Initialize on mount
   useEffect(() => {
@@ -383,6 +405,8 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
     imeOpen,
     imeLabel,
     imeValue,
+    imeCursorStart,
+    imeCursorEnd,
     setImeOpen,
     initApp,
     discoverTV,
@@ -392,6 +416,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
     sendKey,
     sendText,
     sendTextWithCursor,
+    moveCursor,
     sendShortcut,
     getImeValue,
   };

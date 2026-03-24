@@ -10,6 +10,8 @@ export function useKeyboardImeControls() {
     imeOpen,
     imeLabel,
     imeValue,
+    imeCursorStart,
+    imeCursorEnd,
     setImeOpen,
     getImeValue,
   } = useAndroidTV();
@@ -18,6 +20,7 @@ export function useKeyboardImeControls() {
   const [imeSending, setImeSending] = useState(false);
   const imeInputRef = useRef<HTMLTextAreaElement>(null);
   const isTypingRef = useRef(false);
+  const lastSentTextRef = useRef("");
   const sendTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -25,23 +28,29 @@ export function useKeyboardImeControls() {
 
     let active = true;
     setImeText(imeValue);
-    void getImeValue().then((value) => {
-      if (active && !isTypingRef.current) {
-        setImeText(value);
+    lastSentTextRef.current = imeValue;
+
+    // Set cursor position from TV
+    setTimeout(() => {
+      if (active && imeInputRef.current) {
+        imeInputRef.current.focus();
+        imeInputRef.current.setSelectionRange(imeCursorStart, imeCursorEnd);
       }
-    });
-    setTimeout(() => imeInputRef.current?.focus(), 80);
+    }, 80);
 
     return () => {
       active = false;
     };
-  }, [getImeValue, imeOpen, imeValue]);
+  }, [imeOpen, imeValue, imeCursorStart, imeCursorEnd]);
 
   useEffect(() => {
+    // Only update imeText from TV if we're not typing and the value is different
+    // This prevents overwriting user input with TV's echo
     if (imeOpen && !isTypingRef.current && imeValue !== imeText) {
       setImeText(imeValue);
+      lastSentTextRef.current = imeValue;
     }
-  }, [imeOpen, imeText, imeValue]);
+  }, [imeOpen, imeValue]);
 
   useEffect(() => {
     return () => {
@@ -52,8 +61,16 @@ export function useKeyboardImeControls() {
   }, []);
 
   const openIme = useCallback(async () => {
-    const value = await getImeValue();
-    setImeText(value);
+    const state = await getImeValue();
+    setImeText(state.value);
+    lastSentTextRef.current = state.value;
+    // Focus and set cursor position after state update
+    setTimeout(() => {
+      if (imeInputRef.current) {
+        imeInputRef.current.focus();
+        imeInputRef.current.setSelectionRange(state.start, state.end);
+      }
+    }, 80);
     setImeOpen(true);
   }, [getImeValue, setImeOpen]);
 
@@ -65,7 +82,7 @@ export function useKeyboardImeControls() {
     setImeSending(true);
     try {
       await sendText(imeText);
-      await sendKey("ENTER");
+      await sendKey("TEXT_ENTER");
     } finally {
       setImeSending(false);
       setImeOpen(false);
@@ -85,12 +102,16 @@ export function useKeyboardImeControls() {
       }
 
       sendTimeoutRef.current = setTimeout(() => {
-        void sendTextWithCursor(newText, cursorStart, cursorEnd);
-      }, 50);
+        // Only send if text actually changed from what we last sent
+        if (newText !== lastSentTextRef.current) {
+          void sendTextWithCursor(newText, cursorStart, cursorEnd);
+          lastSentTextRef.current = newText;
+        }
+      }, 30);
 
       setTimeout(() => {
         isTypingRef.current = false;
-      }, 500);
+      }, 200);
     },
     [sendTextWithCursor],
   );
@@ -103,10 +124,15 @@ export function useKeyboardImeControls() {
     isTypingRef.current = false;
     if (sendTimeoutRef.current) {
       clearTimeout(sendTimeoutRef.current);
+      sendTimeoutRef.current = null;
     }
-    const cursorStart = imeInputRef.current?.selectionStart || 0;
-    const cursorEnd = imeInputRef.current?.selectionEnd || 0;
-    void sendTextWithCursor(imeText, cursorStart, cursorEnd);
+    // Send final update on blur if there's unsent changes
+    if (imeText !== lastSentTextRef.current) {
+      const cursorStart = imeInputRef.current?.selectionStart || 0;
+      const cursorEnd = imeInputRef.current?.selectionEnd || 0;
+      void sendTextWithCursor(imeText, cursorStart, cursorEnd);
+      lastSentTextRef.current = imeText;
+    }
   }, [imeText, sendTextWithCursor]);
 
   const handleSelect = useCallback(
@@ -114,6 +140,7 @@ export function useKeyboardImeControls() {
       const target = e.target as HTMLTextAreaElement;
       const cursorStart = target.selectionStart;
       const cursorEnd = target.selectionEnd;
+      // Only send cursor position if text hasn't changed
       void sendTextWithCursor(imeText, cursorStart, cursorEnd);
     },
     [imeText, sendTextWithCursor],

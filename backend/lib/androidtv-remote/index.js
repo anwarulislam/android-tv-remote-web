@@ -90,7 +90,24 @@ export class AndroidRemote extends EventEmitter {
 
   // ── IME Text Injection (PATCHED) ───────────────────────────────────────────────
   /**
-   * Send text to the TV's IME input field
+   * Send text to the TV's IME input field using RemoteImeBatchEdit
+   * This is the proper way to send text to Android TV's IME for real-time synchronization
+   * @param {number} imeCounter - The IME counter (increments with each batch edit)
+   * @param {number} fieldCounter - The field counter from TV's textFieldStatus.counterField
+   * @param {string|number} insertText - The text to insert (string or character code)
+   */
+  sendImeBatchEdit(imeCounter, fieldCounter, insertText) {
+    const message = remoteMessageManager.createRemoteImeBatchEdit(
+      imeCounter,
+      fieldCounter,
+      insertText,
+    );
+    this.remoteManager.client.write(message);
+    return true;
+  }
+
+  /**
+   * Send text using RemoteImeKeyInject (legacy method, less reliable)
    * @param {string} appPackage - The app package name (e.g., "com.youtube.vtube")
    * @param {object} textFieldStatus - The text field status object
    * @param {number} textFieldStatus.counterField - The counter field (incrementing number)
@@ -100,6 +117,22 @@ export class AndroidRemote extends EventEmitter {
    */
   sendImeText(appPackage, textFieldStatus) {
     const message = remoteMessageManager.createRemoteImeKeyInject(appPackage, textFieldStatus);
+    this.remoteManager.client.write(message);
+    return true;
+  }
+
+  /**
+   * Send cursor position update to the TV
+   * This is used to sync cursor position changes from the remote to the TV
+   * @param {string} appPackage - The app package name
+   * @param {object} textFieldStatus - The text field status with updated cursor position
+   * @param {number} textFieldStatus.counterField - The counter field from TV
+   * @param {string} textFieldStatus.value - The current text value (unchanged)
+   * @param {number} textFieldStatus.start - New cursor start position
+   * @param {number} textFieldStatus.end - New cursor end position
+   */
+  sendImeCursorUpdate(appPackage, textFieldStatus) {
+    const message = remoteMessageManager.createRemoteImeCursorUpdate(appPackage, textFieldStatus);
     this.remoteManager.client.write(message);
     return true;
   }

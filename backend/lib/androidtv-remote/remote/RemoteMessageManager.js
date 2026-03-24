@@ -103,6 +103,46 @@ class RemoteMessageManager {
     });
   }
 
+  /**
+   * Create a RemoteImeKeyInject message for cursor position updates
+   * This is used to sync cursor position changes from the remote to the TV
+   * @param {string} appPackage - The app package name
+   * @param {object} textFieldStatus - The text field status with updated cursor position
+   * @param {number} textFieldStatus.counterField - The counter field from TV
+   * @param {string} textFieldStatus.value - The current text value (unchanged)
+   * @param {number} textFieldStatus.start - New cursor start position
+   * @param {number} textFieldStatus.end - New cursor end position
+   */
+  createRemoteImeCursorUpdate(appPackage, textFieldStatus) {
+    return this.create({
+      remoteImeKeyInject: {
+        textFieldStatus: textFieldStatus,
+        appInfo: {
+          appPackage: appPackage,
+        },
+      },
+    });
+  }
+
+  /**
+   * Create a RemoteImeBatchEdit message for sending text to the TV
+   * This is the proper way to send text input to Android TV's IME
+   * @param {number} imeCounter - The IME counter (increments with each batch edit)
+   * @param {number} fieldCounter - The field counter from TV's textFieldStatus.counterField
+   * @param {string|number} insertText - The text to insert (can be a string or character code)
+   */
+  createRemoteImeBatchEdit(imeCounter, fieldCounter, insertText) {
+    return this.create({
+      remoteImeBatchEdit: {
+        imeCounter: imeCounter,
+        fieldCounter: fieldCounter,
+        editInfo: {
+          insert: insertText,
+        },
+      },
+    });
+  }
+
   createRemoteRemoteAppLinkLaunchRequest(app_link) {
     return this.create({
       remoteAppLinkLaunchRequest: {
