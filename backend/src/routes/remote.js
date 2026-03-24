@@ -2,10 +2,7 @@ import fs from "node:fs";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import {
-  AndroidRemote,
-  RemoteDirection,
-} from "../../lib/androidtv-remote/index.js";
+import { AndroidRemote, RemoteDirection } from "../../lib/androidtv-remote/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -79,10 +76,8 @@ router.post("/connect", async (req, res) => {
 
   try {
     if (remotes[ip] && remotesState[ip]) {
-      if (remotesState[ip] === "pairing")
-        return res.json({ status: "needs_pin" });
-      if (remotesState[ip] === "connected")
-        return res.json({ status: "connected" });
+      if (remotesState[ip] === "pairing") return res.json({ status: "needs_pin" });
+      if (remotesState[ip] === "connected") return res.json({ status: "connected" });
     }
 
     let certOption;
@@ -113,9 +108,7 @@ router.post("/connect", async (req, res) => {
     remote.on("current_app", (app) => broadcast("current_app", { ip, app }));
 
     remote.on("ime_show", (data) => {
-      console.log(
-        `[Server] ime_show EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`,
-      );
+      console.log(`[Server] ime_show EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`);
       remoteImeLabel[ip] = data.label || "";
       if (data.value !== undefined) remoteImeValue[ip] = data.value;
       // Store counterField, start, end for text injection
@@ -128,9 +121,7 @@ router.post("/connect", async (req, res) => {
 
     // Handle ime_key_inject event from patched library (contains appPackage + textFieldStatus)
     remote.on("ime_key_inject", (data) => {
-      console.log(
-        `[Server] ime_key_inject EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`,
-      );
+      console.log(`[Server] ime_key_inject EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`);
       if (!remoteImeInfo[ip]) remoteImeInfo[ip] = {};
       remoteImeInfo[ip].appPackage = data.appPackage || "";
       remoteImeInfo[ip].counterField = data.counterField || 0;
@@ -150,9 +141,7 @@ router.post("/connect", async (req, res) => {
     });
 
     remote.on("ime_batch_edit", (data) => {
-      console.log(
-        `[Server] ime_batch_edit EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`,
-      );
+      console.log(`[Server] ime_batch_edit EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`);
       // Extract insert text if available
       const insertText = data.edit_info?.insert;
 
@@ -174,8 +163,7 @@ router.post("/connect", async (req, res) => {
       // Process actual text content
       if (typeof insertText === "number") {
         // Single character code - append it
-        remoteImeValue[ip] =
-          (remoteImeValue[ip] || "") + String.fromCharCode(insertText);
+        remoteImeValue[ip] = (remoteImeValue[ip] || "") + String.fromCharCode(insertText);
         broadcast("ime_update", { ip, value: remoteImeValue[ip] || "" });
       } else if (typeof insertText === "string") {
         // Full text - only broadcast if the value actually changed
@@ -233,8 +221,7 @@ router.post("/connect", async (req, res) => {
 router.post("/pair", async (req, res) => {
   const { ip, pin } = req.body;
   const remote = remotes[ip];
-  if (!remote)
-    return res.status(400).json({ error: "No connection for this IP" });
+  if (!remote) return res.status(400).json({ error: "No connection for this IP" });
   try {
     remote.sendCode(pin);
     res.json({ status: "success" });
@@ -287,9 +274,7 @@ router.post("/send-text", async (req, res) => {
   const remote = remotes[ip];
   if (!remote) return res.status(400).json({ error: "Not connected" });
 
-  console.log(
-    `[Server] send-text: ip=${ip}, text="${text}", cursor=[${cursorStart},${cursorEnd}]`,
-  );
+  console.log(`[Server] send-text: ip=${ip}, text="${text}", cursor=[${cursorStart},${cursorEnd}]`);
   console.log(`[Server] remoteImeInfo[${ip}]:`, remoteImeInfo[ip]);
 
   // Store current text for diff calculation
@@ -321,9 +306,7 @@ router.post("/send-text", async (req, res) => {
       console.warn(`[Server] RemoteImeBatchEdit failed: ${e.message}`);
     }
   } else {
-    console.warn(
-      `[Server] No IME info available, falling back to key simulation`,
-    );
+    console.warn(`[Server] No IME info available, falling back to key simulation`);
   }
 
   // Fallback: keycode simulation (for when direct IME injection is not available)
@@ -333,8 +316,7 @@ router.post("/send-text", async (req, res) => {
     const lower = ch.toLowerCase();
     if (lower >= "a" && lower <= "z")
       return { keycode: 29 + (lower.charCodeAt(0) - 97), shift: ch !== lower };
-    if (ch >= "0" && ch <= "9")
-      return { keycode: 7 + (ch.charCodeAt(0) - 48), shift: false };
+    if (ch >= "0" && ch <= "9") return { keycode: 7 + (ch.charCodeAt(0) - 48), shift: false };
     const s = {
       " ": { keycode: 62, shift: false },
       ".": { keycode: 56, shift: false },
@@ -534,7 +516,11 @@ router.post("/send-shortcut", async (req, res) => {
 // ── Get current IME state (is an input focused?) ─────────────────────────────────────
 router.get("/ime-state", (req, res) => {
   const ip = req.query.ip;
-  if (ip && remoteImeInfo[ip] && (remoteImeInfo[ip].appPackage || remoteImeInfo[ip].counterField !== undefined)) {
+  if (
+    ip &&
+    remoteImeInfo[ip] &&
+    (remoteImeInfo[ip].appPackage || remoteImeInfo[ip].counterField !== undefined)
+  ) {
     const info = remoteImeInfo[ip];
     return res.json({
       focused: true,

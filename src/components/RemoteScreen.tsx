@@ -37,8 +37,7 @@ export function RemoteScreen() {
 
   const onSettingsClick = () => initApp();
 
-  const volPct =
-    volumeMax > 0 ? Math.round((volume / volumeMax) * 100) : volume;
+  const volPct = volumeMax > 0 ? Math.round((volume / volumeMax) * 100) : volume;
 
   return (
     <div className="flex justify-center items-center min-h-screen w-[min(100vw,420px)] mx-auto bg-zinc-950 p-4 select-none">
@@ -82,8 +81,8 @@ export function RemoteScreen() {
 
         {/* Keyboard shortcut hint */}
         <p className="text-center text-white/20 text-[10px] tracking-wide pb-1">
-          ↑↓←→ navigate · Space play · ⇧↑ vol+ · ⇧↓ vol- · ⇧← rewind · ⇧→ ff ·
-          ⌘← prev · ⌘→ next · type to send text · ⌫ delete · Esc back
+          ↑↓←→ navigate · Space play · ⇧↑ vol+ · ⇧↓ vol- · ⇧← rewind · ⇧→ ff · ⌘← prev · ⌘→ next ·
+          type to send text · ⌫ delete · Esc back
         </p>
       </div>
     </div>

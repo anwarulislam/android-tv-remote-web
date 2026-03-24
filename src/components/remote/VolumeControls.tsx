@@ -45,9 +45,7 @@ export function VolumeControls({
       </button>
 
       <div className="relative z-10 flex flex-col items-center gap-1 px-2 w-full pointer-events-none select-none">
-        <span className="text-[30px] leading-none font-extralight text-white/90">
-          {volume}
-        </span>
+        <span className="text-[30px] leading-none font-extralight text-white/90">{volume}</span>
         <span className="text-[10px] mt-0.5 font-semibold text-white/80 tracking-[0.2em] uppercase">
           {muted ? "MUTED" : "VOL"}
         </span>

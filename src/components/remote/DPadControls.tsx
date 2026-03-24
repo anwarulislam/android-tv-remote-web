@@ -1,9 +1,4 @@
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-} from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 
 export function DPadControls({ sendKey }: { sendKey: (key: string) => void }) {
   return (
@@ -13,8 +8,7 @@ export function DPadControls({ sendKey }: { sendKey: (key: string) => void }) {
           className="absolute inset-0 rounded-full"
           style={{
             background: "radial-gradient(circle at 35% 30%, #2a2a38, #111115)",
-            boxShadow:
-              "0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
           }}
         />
 

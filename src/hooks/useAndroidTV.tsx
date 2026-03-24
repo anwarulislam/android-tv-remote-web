@@ -1,12 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 const API = "http://127.0.0.1:59999";
 
@@ -21,13 +14,7 @@ export type DeviceState =
   | "no_server"
   | "connection_timeout";
 
-export type Shortcut =
-  | "SELECT_ALL"
-  | "COPY"
-  | "PASTE"
-  | "CUT"
-  | "UNDO"
-  | "REDO";
+export type Shortcut = "SELECT_ALL" | "COPY" | "PASTE" | "CUT" | "UNDO" | "REDO";
 
 export interface Device {
   name: string;
@@ -70,11 +57,7 @@ interface AndroidTVContextValue {
   // Remote actions
   sendKey: (key: string) => Promise<void>;
   sendText: (text: string) => Promise<void>;
-  sendTextWithCursor: (
-    text: string,
-    cursorStart: number,
-    cursorEnd: number,
-  ) => Promise<void>;
+  sendTextWithCursor: (text: string, cursorStart: number, cursorEnd: number) => Promise<void>;
   moveCursor: (cursorStart: number, cursorEnd: number) => Promise<void>;
   sendShortcut: (shortcut: Shortcut) => Promise<void>;
   getImeValue: () => Promise<{ value: string; start: number; end: number }>;
@@ -104,9 +87,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
   const [imeCursorEnd, setImeCursorEnd] = useState(0);
 
   const sseRef = useRef<EventSource | null>(null);
-  const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDeviceRef = useRef<Device | null>(null);
 
   // SSE connection
@@ -456,11 +437,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
     getImeValue,
   };
 
-  return (
-    <AndroidTVContext.Provider value={value}>
-      {children}
-    </AndroidTVContext.Provider>
-  );
+  return <AndroidTVContext.Provider value={value}>{children}</AndroidTVContext.Provider>;
 }
 
 export function useAndroidTV(): AndroidTVContextValue {
