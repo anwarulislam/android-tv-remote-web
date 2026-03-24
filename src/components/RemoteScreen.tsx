@@ -15,6 +15,9 @@ export interface RemoteScreenProps {
     setVolume: React.Dispatch<React.SetStateAction<number>>;
     sendKey: (key: string) => void;
     sendText: (text: string) => Promise<void>;
+    sendTextWithCursor: (text: string, cursorStart: number, cursorEnd: number) => Promise<void>;
+    sendCursorPosition: (start: number, end: number) => Promise<void>;
+    sendShortcut: (shortcut: "SELECT_ALL" | "COPY" | "PASTE" | "CUT" | "UNDO" | "REDO") => Promise<void>;
     imeOpen: boolean;
     imeLabel: string;
     imeValue: string;
@@ -55,6 +58,9 @@ export function RemoteScreen({
     setVolume,
     sendKey,
     sendText,
+    sendTextWithCursor,
+    sendCursorPosition,
+    sendShortcut,
     imeOpen,
     imeLabel,
     imeValue,
@@ -206,6 +212,8 @@ export function RemoteScreen({
                             onChange={(e) => {
                                 isTypingRef.current = true;
                                 const newText = e.target.value;
+                                const cursorStart = e.target.selectionStart;
+                                const cursorEnd = e.target.selectionEnd;
                                 setImeText(newText);
 
                                 // Clear previous timeout
@@ -215,7 +223,7 @@ export function RemoteScreen({
 
                                 // Send text after a short delay (debounce)
                                 sendTimeoutRef.current = setTimeout(() => {
-                                    sendText(newText);
+                                    sendTextWithCursor(newText, cursorStart, cursorEnd);
                                 }, 50);
 
                                 // Reset typing flag after a delay to allow sync from TV
@@ -230,9 +238,36 @@ export function RemoteScreen({
                                 if (sendTimeoutRef.current) {
                                     clearTimeout(sendTimeoutRef.current);
                                 }
-                                sendText(imeText);
+                                const cursorStart = imeInputRef.current?.selectionStart || 0;
+                                const cursorEnd = imeInputRef.current?.selectionEnd || 0;
+                                sendTextWithCursor(imeText, cursorStart, cursorEnd);
+                            }}
+                            onSelect={(e) => {
+                                // Track cursor movement without text change
+                                const cursorStart = e.target.selectionStart;
+                                const cursorEnd = e.target.selectionEnd;
+                                sendCursorPosition(cursorStart, cursorEnd);
                             }}
                             onKeyDown={(e) => {
+                                // Handle Ctrl/Cmd shortcuts
+                                if (e.ctrlKey || e.metaKey) {
+                                    const shortcutMap: Record<string, "SELECT_ALL" | "COPY" | "PASTE" | "CUT" | "UNDO" | "REDO"> = {
+                                        'a': 'SELECT_ALL',
+                                        'c': 'COPY',
+                                        'v': 'PASTE',
+                                        'x': 'CUT',
+                                        'z': 'UNDO',
+                                        'y': 'REDO',
+                                    };
+
+                                    const shortcut = shortcutMap[e.key.toLowerCase()];
+                                    if (shortcut) {
+                                        e.preventDefault();
+                                        sendShortcut(shortcut);
+                                        return;
+                                    }
+                                }
+
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
                                     handleImeSend();
@@ -246,7 +281,7 @@ export function RemoteScreen({
 
                         <div className="flex items-center justify-between mt-3">
                             <p className="text-white/25 text-xs">
-                                Shift+Enter for new line • Esc to dismiss
+                                Ctrl+A:Select All • Ctrl+C:Copy • Ctrl+V:Paste
                             </p>
                             <button
                                 className="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white transition-all cursor-pointer disabled:opacity-40"

@@ -376,6 +376,90 @@ router.post("/send-text", async (req, res) => {
   }
 });
 
+// ── Move cursor (send arrow keys) ──────────────────────────────────────────────────
+router.post("/move-cursor", async (req, res) => {
+  const { ip, start, end } = req.body;
+  const remote = remotes[ip];
+  if (!remote) return res.status(400).json({ error: "Not connected" });
+
+  const info = remoteImeInfo[ip];
+  const currentEnd = info?.cursorEnd || 0;
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  try {
+    if (start < currentEnd) {
+      // Move cursor left - send LEFT key events
+      const diff = currentEnd - start;
+      for (let i = 0; i < diff; i++) {
+        remote.sendKey(21, RemoteDirection.SHORT); // KEYCODE_DPAD_LEFT
+        await sleep(20);
+      }
+    } else if (start > currentEnd) {
+      // Move cursor right - send RIGHT key events
+      const diff = start - currentEnd;
+      for (let i = 0; i < diff; i++) {
+        remote.sendKey(22, RemoteDirection.SHORT); // KEYCODE_DPAD_RIGHT
+        await sleep(20);
+      }
+    }
+
+    // Update stored cursor position
+    if (!remoteImeInfo[ip]) remoteImeInfo[ip] = {};
+    remoteImeInfo[ip].cursorStart = start;
+    remoteImeInfo[ip].cursorEnd = end;
+
+    res.json({ status: "ok" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Send keyboard shortcut (Ctrl+key combinations) ───────────────────────────────
+router.post("/send-shortcut", async (req, res) => {
+  const { ip, shortcut } = req.body;
+  const remote = remotes[ip];
+  if (!remote) return res.status(400).json({ error: "Not connected" });
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // Key codes for shortcuts
+  const SHORTCUT_KEYS = {
+    SELECT_ALL: 30,    // KEYCODE_A
+    COPY: 35,          // KEYCODE_C
+    PASTE: 50,         // KEYCODE_V
+    CUT: 54,           // KEYCODE_X
+    UNDO: 52,          // KEYCODE_Z
+    REDO: 29,          // KEYCODE_Y
+  };
+
+  // Android uses META_LEFT (keycode 117) for Ctrl-like behavior in shortcuts
+  // Some devices also support CTRL_LEFT (keycode 113)
+  const MODIFIER_KEYCODE = 117; // META_LEFT
+
+  const actionKeycode = SHORTCUT_KEYS[shortcut];
+  if (!actionKeycode) {
+    return res.status(400).json({ error: "Invalid shortcut" });
+  }
+
+  try {
+    // Press and hold modifier
+    remote.sendKey(MODIFIER_KEYCODE, RemoteDirection.START_LONG);
+    await sleep(15);
+
+    // Press the action key
+    remote.sendKey(actionKeycode, RemoteDirection.SHORT);
+    await sleep(15);
+
+    // Release modifier
+    remote.sendKey(MODIFIER_KEYCODE, RemoteDirection.END_LONG);
+
+    res.json({ status: "ok" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Get current IME value ───────────────────────────────────────────────────────
 router.get("/ime-value", (req, res) => {
   const ip = req.query.ip;

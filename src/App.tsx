@@ -197,6 +197,30 @@ function App() {
     }).catch(console.error);
   }
 
+  async function sendTextWithCursor(text: string, cursorStart: number, cursorEnd: number) {
+    await fetch(`${API}/send-text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ip, text, cursorStart, cursorEnd }),
+    }).catch(console.error);
+  }
+
+  async function sendCursorPosition(start: number, end: number) {
+    await fetch(`${API}/move-cursor`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ip, start, end }),
+    }).catch(console.error);
+  }
+
+  async function sendShortcut(shortcut: "SELECT_ALL" | "COPY" | "PASTE" | "CUT" | "UNDO" | "REDO") {
+    await fetch(`${API}/send-shortcut`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ip, shortcut }),
+    }).catch(console.error);
+  }
+
   const isConnectionScreen = [
     "disconnected", "pairing", "needs_pin",
     "discovering", "discovered", "select_saved",
@@ -232,6 +256,9 @@ function App() {
       setVolume={setVolume}
       sendKey={sendKey}
       sendText={sendText}
+      sendTextWithCursor={sendTextWithCursor}
+      sendCursorPosition={sendCursorPosition}
+      sendShortcut={sendShortcut}
       imeOpen={imeOpen}
       imeLabel={imeLabel}
       imeValue={imeValue}
