@@ -2,16 +2,10 @@ import { ArrowLeft, Home, Menu, Mic, VolumeX } from "lucide-react";
 import { KeyboardControls } from "./KeyboardControls";
 import { IconBtn } from "./IconBtn";
 
-export function ActionGrid({
-  openIme,
-  sendKey,
-}: {
-  openIme: () => void;
-  sendKey: (key: string) => void;
-}) {
+export function ActionGrid({ sendKey }: { sendKey: (key: string) => void }) {
   return (
     <div className="flex-1 grid grid-cols-3 gap-2 sm:gap-3">
-      <KeyboardControls openIme={openIme} />
+      <KeyboardControls />
       <IconBtn
         onClick={() => sendKey("HOME")}
         title="Home (⌘H)"

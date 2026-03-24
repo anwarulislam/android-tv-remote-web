@@ -1,20 +1,19 @@
 import { useEffect } from "react";
-import type React from "react";
 
 export function useRemoteKeyboardShortcuts({
-  imeInputRef,
   sendKey,
   setVolume,
   openIme,
+  disabled = false,
 }: {
-  imeInputRef: React.RefObject<HTMLTextAreaElement | null>;
   sendKey: (key: string) => void;
   setVolume: (value: number | ((prev: number) => number)) => void;
   openIme: () => void;
+  disabled?: boolean;
 }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (document.activeElement === imeInputRef.current) return;
+      if (disabled) return;
       const tag = (document.activeElement as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
@@ -114,5 +113,5 @@ export function useRemoteKeyboardShortcuts({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [imeInputRef, openIme, sendKey, setVolume]);
+  }, [disabled, openIme, sendKey, setVolume]);
 }
