@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 
-export function useRemoteKeyboardShortcuts({
+export function useRemoteHotkeys({
   sendKey,
+  sendText,
   setVolume,
   openIme,
   disabled = false,
 }: {
   sendKey: (key: string) => void;
+  sendText: (text: string) => void;
   setVolume: (value: number | ((prev: number) => number)) => void;
   openIme: () => void;
   disabled?: boolean;
@@ -14,7 +16,8 @@ export function useRemoteKeyboardShortcuts({
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (disabled) return;
-      const tag = (document.activeElement as HTMLElement)?.tagName;
+
+      const tag = (document.activeElement as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
       const meta = e.metaKey || e.ctrlKey;
@@ -22,37 +25,42 @@ export function useRemoteKeyboardShortcuts({
       if (!meta && !e.shiftKey) {
         if (e.key === "ArrowUp") {
           e.preventDefault();
-          sendKey("UP");
+          void sendKey("UP");
           return;
         }
         if (e.key === "ArrowDown") {
           e.preventDefault();
-          sendKey("DOWN");
+          void sendKey("DOWN");
           return;
         }
         if (e.key === "ArrowLeft") {
           e.preventDefault();
-          sendKey("LEFT");
+          void sendKey("LEFT");
           return;
         }
         if (e.key === "ArrowRight") {
           e.preventDefault();
-          sendKey("RIGHT");
+          void sendKey("RIGHT");
           return;
         }
         if (e.key === "Enter") {
           e.preventDefault();
-          sendKey("ENTER");
+          void sendKey("ENTER");
           return;
         }
-        if (e.key === "Escape" || e.key === "Backspace") {
+        if (e.key === "Escape") {
           e.preventDefault();
-          sendKey("BACK");
+          void sendKey("BACK");
+          return;
+        }
+        if (e.key === "Backspace") {
+          e.preventDefault();
+          void sendKey("BACKSPACE");
           return;
         }
         if (e.key === " ") {
           e.preventDefault();
-          sendKey("PLAY_PAUSE");
+          void sendKey("PLAY_PAUSE");
           return;
         }
       }
@@ -61,23 +69,23 @@ export function useRemoteKeyboardShortcuts({
         if (e.key === "ArrowUp") {
           e.preventDefault();
           setVolume((v) => v + 1);
-          sendKey("VOL_UP");
+          void sendKey("VOL_UP");
           return;
         }
         if (e.key === "ArrowDown") {
           e.preventDefault();
           setVolume((v) => Math.max(0, v - 1));
-          sendKey("VOL_DOWN");
+          void sendKey("VOL_DOWN");
           return;
         }
         if (e.key === "ArrowRight") {
           e.preventDefault();
-          sendKey("FF");
+          void sendKey("FF");
           return;
         }
         if (e.key === "ArrowLeft") {
           e.preventDefault();
-          sendKey("REWIND");
+          void sendKey("REWIND");
           return;
         }
       }
@@ -85,33 +93,38 @@ export function useRemoteKeyboardShortcuts({
       if (meta) {
         if (e.key === "ArrowRight") {
           e.preventDefault();
-          sendKey("NEXT");
+          void sendKey("NEXT");
           return;
         }
         if (e.key === "ArrowLeft") {
           e.preventDefault();
-          sendKey("PREV");
+          void sendKey("PREV");
           return;
         }
         if (e.key === "m" || e.key === "M") {
           e.preventDefault();
-          sendKey("MUTE");
+          void sendKey("MUTE");
           return;
         }
         if (e.key === "h" || e.key === "H") {
           e.preventDefault();
-          sendKey("HOME");
+          void sendKey("HOME");
           return;
         }
         if (e.key === "k" || e.key === "K") {
           e.preventDefault();
-          openIme();
+          void openIme();
           return;
         }
+      }
+
+      if (!meta && !e.altKey && e.key.length === 1) {
+        e.preventDefault();
+        void sendText(e.key);
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [disabled, openIme, sendKey, setVolume]);
+  }, [disabled, openIme, sendKey, sendText, setVolume]);
 }

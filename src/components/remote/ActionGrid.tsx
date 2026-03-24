@@ -36,7 +36,7 @@ export function ActionGrid({ sendKey }: { sendKey: (key: string) => void }) {
       </IconBtn>
       <IconBtn
         onClick={() => sendKey("BACK")}
-        title="Back (Esc/⌫)"
+        title="Back (Esc)"
         className="glass min-h-[56px] h-full text-white/55 hover:text-white hover:bg-white/10"
       >
         <ArrowLeft size={18} />

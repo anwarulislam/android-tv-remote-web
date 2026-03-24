@@ -4,7 +4,7 @@ import { DPadControls } from "./remote/DPadControls";
 import { MediaControls } from "./remote/MediaControls";
 import { RemoteHeader } from "./remote/RemoteHeader";
 import { VolumeControls } from "./remote/VolumeControls";
-import { useRemoteKeyboardShortcuts } from "../hooks/useRemoteKeyboardShortcuts";
+import { useRemoteHotkeys } from "../hooks/useRemoteHotkeys";
 import { useAndroidTV } from "../hooks/useAndroidTV";
 
 /* ── Main component ────────────────────────────────────── */
@@ -17,6 +17,7 @@ export function RemoteScreen() {
     muted,
     setVolume,
     sendKey,
+    sendText,
     initApp,
     imeOpen,
     setImeOpen,
@@ -26,8 +27,9 @@ export function RemoteScreen() {
     setImeOpen(true);
   }, [setImeOpen]);
 
-  useRemoteKeyboardShortcuts({
+  useRemoteHotkeys({
     sendKey,
+    sendText,
     setVolume,
     openIme,
     disabled: imeOpen,
@@ -81,7 +83,7 @@ export function RemoteScreen() {
         {/* Keyboard shortcut hint */}
         <p className="text-center text-white/20 text-[10px] tracking-wide pb-1">
           ↑↓←→ navigate · Space play · ⇧↑ vol+ · ⇧↓ vol- · ⇧← rewind · ⇧→ ff ·
-          ⌘← prev · ⌘→ next
+          ⌘← prev · ⌘→ next · type to send text · ⌫ delete · Esc back
         </p>
       </div>
     </div>
