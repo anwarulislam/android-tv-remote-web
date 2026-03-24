@@ -64,6 +64,8 @@ function App() {
         const data = JSON.parse(e.data);
         if (data.ip !== ip) return;
         setImeValue(data.value || "");
+        // Open modal when TV focuses an input (even if ime_show wasn't sent)
+        setImeOpen(true);
       } catch (err) { }
     });
 

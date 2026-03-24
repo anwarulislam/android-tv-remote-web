@@ -1,8 +1,9 @@
-const express = require("express");
-const Bonjour = require("bonjour-service");
+import express from "express";
+import { Bonjour } from "bonjour-service";
+
 const router = express.Router();
 
-const bonjour = new Bonjour.Bonjour();
+const bonjour = new Bonjour();
 
 router.get("/", (req, res) => {
   console.log(`[Server] Discovering Android TVs on network...`);
@@ -24,4 +25,4 @@ router.get("/", (req, res) => {
   }, 2500);
 });
 
-module.exports = router;
+export default router;

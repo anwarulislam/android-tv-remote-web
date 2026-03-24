@@ -1,7 +1,13 @@
-const express = require("express");
-const { AndroidRemote, RemoteDirection } = require("androidtv-remote");
-const fs = require("fs");
-const path = require("path");
+import express from "express";
+import { AndroidRemote, RemoteDirection } from "../../lib/androidtv-remote/index.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const router = express.Router();
 
 // ── IME State Management ───────────────────────────────────────────────────────────
@@ -126,6 +132,15 @@ router.post("/connect", async (req, res) => {
       remoteImeInfo[ip].cursorEnd = data.end || 0;
       // If there's a value, update it
       if (data.value !== undefined) remoteImeValue[ip] = data.value;
+      // Broadcast to frontend to open the modal when TV focuses an input
+      broadcast("ime_show", {
+        ip,
+        label: remoteImeLabel[ip] || "",
+        value: remoteImeValue[ip] || "",
+        counterField: data.counterField || 0,
+        start: data.start || 0,
+        end: data.end || 0,
+      });
     });
 
     remote.on("ime_batch_edit", (data) => {
@@ -377,4 +392,4 @@ router.get("/volume", (req, res) => {
   res.json({ level: null, maximum: null, muted: false });
 });
 
-module.exports = router;
+export default router;

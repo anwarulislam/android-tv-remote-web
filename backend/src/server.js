@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-"use strict";
-
-const express = require("express");
-const cors = require("cors");
-const discoverRouter = require("./routes/discover");
-const remoteRouter = require("./routes/remote");
+import express from "express";
+import cors from "cors";
+import discoverRouter from "./routes/discover.js";
+import remoteRouter from "./routes/remote.js";
 
 const app = express();
 
