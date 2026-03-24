@@ -4,6 +4,9 @@ import express from "express";
 import discoverRouter from "./routes/discover.js";
 import remoteRouter from "./routes/remote.js";
 
+// Set process name for system monitors
+process.title = "androidtv";
+
 const app = express();
 
 // Allow requests from tv.anwar.bd, localhost (dev), and Tauri app (tauri://)

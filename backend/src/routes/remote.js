@@ -18,7 +18,8 @@ const remoteImeValue = {}; // last known IME field value per IP
 const remoteImeInfo = {}; // { appPackage, counterField, lastSentText, cursorStart, cursorEnd } per IP
 let sseClients = []; // SSE subscriber list
 
-const DEVICES_FILE = path.join(__dirname, "..", "devices.json");
+// Get devices file path from environment variable or use default
+const DEVICES_FILE = process.env.ANDROIDTV_DEVICES_PATH || path.join(__dirname, "..", "devices.json");
 let savedDevices = {};
 try {
   if (fs.existsSync(DEVICES_FILE)) {

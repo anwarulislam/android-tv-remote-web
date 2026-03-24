@@ -113,11 +113,26 @@ fn start_backend_server<R: tauri::Runtime>(app_handle: &AppHandle<R>) -> Result<
 
     println!("Starting backend server...");
 
-    // Find Node.js executable
-    let node_exe = find_node_executable();
+    // Find Node.js executable - use bundled androidtv in production, system Node.js in dev
+    let node_exe = if cfg!(debug_assertions) {
+        // Development mode - use system Node.js
+        find_node_executable()
+    } else {
+        // Production mode - use bundled androidtv binary
+        let resource_path = app_handle.path().resource_dir()?;
+        let androidtv_path = resource_path.join("sidecars").join("bin").join("androidtv");
+        if androidtv_path.exists() {
+            println!("Using bundled androidtv binary at: {:?}", androidtv_path);
+            Some(androidtv_path)
+        } else {
+            println!("Bundled androidtv not found, falling back to system Node.js");
+            find_node_executable()
+        }
+    };
+
     let node_path = match node_exe {
         Some(path) => {
-            println!("Found Node.js at: {:?}", path);
+            println!("Using Node.js at: {:?}", path);
             path
         }
         None => {
@@ -165,9 +180,25 @@ fn start_backend_server<R: tauri::Runtime>(app_handle: &AppHandle<R>) -> Result<
     let server_script = backend_path.join("src/server.js");
     println!("Server script: {:?}", server_script);
 
+    // Set up devices file path in app data directory
+    let devices_path = if cfg!(debug_assertions) {
+        backend_path.join("devices.json")
+    } else {
+        // In production, use app data directory
+        app_handle.path().app_data_dir()?.join("devices.json")
+    };
+
+    // Ensure parent directory exists
+    if let Some(parent) = devices_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    println!("Devices file path: {:?}", devices_path);
+
     let child = process::Command::new(&node_path)
         .arg(&server_script)
         .current_dir(&backend_path)
+        .env("ANDROIDTV_DEVICES_PATH", devices_path)
         .spawn()
         .map_err(|e| {
             println!("Failed to start backend server: {}", e);

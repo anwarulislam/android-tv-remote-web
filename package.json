@@ -15,7 +15,7 @@
     "preview": "vite preview",
     "backend": "node backend/src/server.js",
     "dev:backend": "node backend/src/server.js",
-    "prepare:backend": "cd backend && npm install --production"
+    "prepare:backend": "cd backend && npm install --production && cd ../src-tauri/sidecars/bin && [ -f androidtv ] || cp $(which node) androidtv"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
