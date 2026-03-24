@@ -140,6 +140,18 @@ export function RemoteScreen() {
       }
 
       if (e.shiftKey && !meta) {
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setVolume((v) => v + 1);
+          sendKey("VOL_UP");
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setVolume((v) => Math.max(0, v - 1));
+          sendKey("VOL_DOWN");
+          return;
+        }
         if (e.key === "ArrowRight") {
           e.preventDefault();
           sendKey("FF");
@@ -161,18 +173,6 @@ export function RemoteScreen() {
         if (e.key === "ArrowLeft") {
           e.preventDefault();
           sendKey("PREV");
-          return;
-        }
-        if (e.key === "ArrowUp") {
-          e.preventDefault();
-          setVolume((v) => v + 1);
-          sendKey("VOL_UP");
-          return;
-        }
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          setVolume((v) => Math.max(0, v - 1));
-          sendKey("VOL_DOWN");
           return;
         }
         if (e.key === "m" || e.key === "M") {
@@ -554,7 +554,7 @@ export function RemoteScreen() {
                 setVolume((v) => Math.min(v + 1, volumeMax));
                 sendKey("VOL_UP");
               }}
-              title="Volume Up (⌘↑)"
+              title="Volume Up (⇧↑)"
             >
               <Volume2 size={18} />
             </button>
@@ -580,7 +580,7 @@ export function RemoteScreen() {
                 setVolume((v) => Math.max(0, v - 1));
                 sendKey("VOL_DOWN");
               }}
-              title="Volume Down (⌘↓)"
+              title="Volume Down (⇧↓)"
             >
               <Volume1 size={18} />
             </button>
@@ -635,7 +635,8 @@ export function RemoteScreen() {
 
         {/* Keyboard shortcut hint */}
         <p className="text-center text-white/20 text-[10px] tracking-wide pb-1">
-          ↑↓←→ navigate · Space play · ⇧← rewind · ⇧→ ff · ⌘← prev · ⌘→ next
+          ↑↓←→ navigate · Space play · ⇧↑ vol+ · ⇧↓ vol- · ⇧← rewind · ⇧→ ff ·
+          ⌘← prev · ⌘→ next
         </p>
       </div>
     </div>
