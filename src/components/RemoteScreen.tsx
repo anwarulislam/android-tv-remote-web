@@ -65,6 +65,8 @@ export function RemoteScreen({
     const [imeText, setImeText] = useState('');
     const [imeSending, setImeSending] = useState(false);
     const imeInputRef = useRef<HTMLInputElement>(null);
+    const isTypingRef = useRef(false);
+    const sendTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Focus the IME input when it opens and initialize with existing value
     useEffect(() => {
@@ -72,7 +74,14 @@ export function RemoteScreen({
             setImeText(imeValue);
             setTimeout(() => imeInputRef.current?.focus(), 80);
         }
-    }, [imeOpen, imeValue]);
+    }, [imeOpen]);
+
+    // Sync imeValue from TV to imeText when user is not typing
+    useEffect(() => {
+        if (imeOpen && !isTypingRef.current && imeValue !== imeText) {
+            setImeText(imeValue);
+        }
+    }, [imeValue, imeOpen]);
 
     // ── Global keyboard shortcut handler ──────────────────
     useEffect(() => {
@@ -171,11 +180,11 @@ export function RemoteScreen({
             {/* ── IME Modal ────────────────────────────────── */}
             {imeOpen && (
                 <div
-                    className="fixed inset-0 z-50 flex items-end justify-center p-4"
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
                     style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
                     onClick={(e) => { if (e.target === e.currentTarget) setImeOpen(false); }}
                 >
-                    <div className="glass rounded-3xl p-6 w-full max-w-sm animate-fade-in-up shadow-2xl">
+                    <div className="glass rounded-3xl p-6 w-full max-w-lg animate-fade-in-up shadow-2xl">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
                                 <Keyboard size={16} className="text-indigo-400" />
@@ -191,37 +200,66 @@ export function RemoteScreen({
                             </button>
                         </div>
 
-                        <div className="flex gap-3">
-                            <input
-                                ref={imeInputRef}
-                                type="text"
-                                value={imeText}
-                                onChange={(e) => {
-                                    setImeText(e.target.value);
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') { e.preventDefault(); handleImeSend(); }
-                                    if (e.key === 'Escape') setImeOpen(false);
-                                }}
-                                placeholder={imeLabel || 'Type to send to TV…'}
-                                className="flex-1 bg-zinc-950/80 border border-white/12 rounded-xl px-4 py-3 text-white text-sm placeholder-white/25 outline-none focus:border-indigo-500/60 transition-colors"
-                                style={{ userSelect: 'text' }}
-                            />
+                        <textarea
+                            ref={imeInputRef as any}
+                            value={imeText}
+                            onChange={(e) => {
+                                isTypingRef.current = true;
+                                const newText = e.target.value;
+                                setImeText(newText);
+
+                                // Clear previous timeout
+                                if (sendTimeoutRef.current) {
+                                    clearTimeout(sendTimeoutRef.current);
+                                }
+
+                                // Send text after a short delay (debounce)
+                                sendTimeoutRef.current = setTimeout(() => {
+                                    sendText(newText);
+                                }, 50);
+
+                                // Reset typing flag after a delay to allow sync from TV
+                                setTimeout(() => { isTypingRef.current = false; }, 500);
+                            }}
+                            onFocus={() => {
+                                isTypingRef.current = false;
+                            }}
+                            onBlur={() => {
+                                isTypingRef.current = false;
+                                // Send final text when leaving the field
+                                if (sendTimeoutRef.current) {
+                                    clearTimeout(sendTimeoutRef.current);
+                                }
+                                sendText(imeText);
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleImeSend();
+                                }
+                                if (e.key === 'Escape') setImeOpen(false);
+                            }}
+                            placeholder={imeLabel || 'Type to send to TV…'}
+                            className="w-full h-40 bg-zinc-950/80 border border-white/12 rounded-xl px-4 py-3 text-white text-sm placeholder-white/25 outline-none focus:border-indigo-500/60 transition-colors resize-none"
+                            style={{ userSelect: 'text' }}
+                        />
+
+                        <div className="flex items-center justify-between mt-3">
+                            <p className="text-white/25 text-xs">
+                                Shift+Enter for new line • Esc to dismiss
+                            </p>
                             <button
-                                className="w-12 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white transition-all cursor-pointer disabled:opacity-40"
+                                className="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white transition-all cursor-pointer disabled:opacity-40"
                                 onClick={handleImeSend}
                                 disabled={imeSending}
+                                title="Press Enter"
                             >
                                 {imeSending
                                     ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                                    : <Send size={16} />
+                                    : <Send size={14} />
                                 }
                             </button>
                         </div>
-
-                        <p className="text-center text-white/25 text-xs mt-3">
-                            Press Enter to send • Esc to dismiss
-                        </p>
                     </div>
                 </div>
             )}

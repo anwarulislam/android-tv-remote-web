@@ -33,6 +33,8 @@ function App() {
 
     const es = new EventSource(`${API}/events?ip=${encodeURIComponent(ip)}`);
 
+    console.log('[Frontend] SSE connection opened to', `${API}/events?ip=${encodeURIComponent(ip)}`);
+
     es.addEventListener("volume", (e) => {
       try {
         const data = JSON.parse(e.data);
@@ -46,10 +48,22 @@ function App() {
     es.addEventListener("ime_show", (e) => {
       try {
         const data = JSON.parse(e.data);
+        console.log('[Frontend] ime_show SSE event:', data);
         if (data.ip !== ip) return;
         setImeLabel(data.label || "");
         setImeValue(data.value || "");
         setImeOpen(true);
+        console.log('[Frontend] Opening IME modal with value:', data.value);
+      } catch (err) {
+        console.error('[Frontend] Error parsing ime_show:', err);
+      }
+    });
+
+    es.addEventListener("ime_update", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.ip !== ip) return;
+        setImeValue(data.value || "");
       } catch (err) { }
     });
 

@@ -55,26 +55,58 @@ AndroidRemote.prototype.sendImeText = function(appPackage, counterField, text) {
 // Patch AndroidRemote.start to forward IME events from remoteManager
 const originalAndroidStart = AndroidRemote.prototype.start;
 AndroidRemote.prototype.start = async function() {
+  console.log(`[Library] AndroidRemote.start() called for ${this.host}`);
+
   const result = await originalAndroidStart.call(this);
+  console.log(`[Library] Original start() completed for ${this.host}, remoteManager exists:`, !!this.remoteManager);
 
   if (this.remoteManager) {
+    console.log(`[Library] Setting up IME event listeners on remoteManager for ${this.host}`);
+
+    // Debug: Log ALL events emitted by remoteManager
+    const originalEmit = this.remoteManager.emit.bind(this.remoteManager);
+    this.remoteManager.emit = function(event, ...args) {
+      if (event.startsWith('ime_')) {
+        console.log(`[Library] remoteManager.emit('${event}', ${JSON.stringify(args).slice(0, 100)})`);
+      }
+      return originalEmit(event, ...args);
+    };
+
     // Forward IME events to AndroidRemote
     this.remoteManager.on('ime_show', (data) => {
-      console.log(`[Library] ime_show: ${JSON.stringify(data)}`);
+      console.log(`[Library] ime_show listener triggered: ${JSON.stringify(data)}`);
       // Initialize counter if not set
       if (!imeCounters.has(this.host)) {
         imeCounters.set(this.host, 0);
       }
+      console.log(`[Library] Forwarding ime_show to AndroidRemote`);
       this.emit('ime_show', data);
     });
+
     this.remoteManager.on('ime_hide', () => {
-      console.log("[Library] ime_hide");
+      console.log("[Library] ime_hide listener triggered");
       this.emit('ime_hide');
     });
+
+    // Intercept ime_batch_edit to extract insert text and emit ime_update event
     this.remoteManager.on('ime_batch_edit', (data) => {
-      console.log(`[Library] ime_batch_edit: ${JSON.stringify(data)}`);
-      this.emit('ime_batch_edit', data);
+      console.log(`[Library] ime_batch_edit listener triggered: ${JSON.stringify(data)}`);
+      // The library's RemoteManager emits ime_hide for batch edits
+      // We want to emit ime_update with the insert text
+      const insertText = data?.edit_info?.insert;
+      if (typeof insertText === 'string' || typeof insertText === 'number') {
+        // Convert number to string if needed (insert can be a number for some reason)
+        const text = String(insertText);
+        console.log(`[Library] ime_update: "${text}"`);
+        this.emit('ime_update', { text });
+      } else {
+        // No insert text = keyboard dismissed
+        console.log("[Library] No insert text, emitting ime_hide");
+        this.emit('ime_hide');
+      }
     });
+  } else {
+    console.log(`[Library] WARNING: remoteManager not available!`);
   }
 
   return result;
@@ -181,12 +213,13 @@ router.post("/connect", async (req, res) => {
     remote.on("current_app", (app) => broadcast("current_app", { ip, app }));
 
     remote.on("ime_show", (data) => {
-      console.log(`[Server] ime_show: ${JSON.stringify(data)}`);
+      console.log(`[Server] ime_show EVENT RECEIVED for ${ip}: ${JSON.stringify(data)}`);
       remoteImeLabel[ip] = data.label || "";
       if (data.value !== undefined) remoteImeValue[ip] = data.value;
       // Store counterField for text injection
       if (!remoteImeInfo[ip]) remoteImeInfo[ip] = {};
       if (data.counterField !== undefined) remoteImeInfo[ip].counterField = data.counterField;
+      console.log(`[Server] Broadcasting ime_show to SSE clients`);
       broadcast("ime_show", { ip, ...data });
     });
 
@@ -195,6 +228,24 @@ router.post("/connect", async (req, res) => {
       console.log(`[Server] current_app: ${appPackage}`);
       if (!remoteImeInfo[ip]) remoteImeInfo[ip] = {};
       remoteImeInfo[ip].appPackage = appPackage;
+    });
+
+    // Handle ime_update - new text from TV (typing on TV)
+    remote.on("ime_update", (data) => {
+      console.log(`[Server] ime_update: "${data.text}"`);
+      const currentText = remoteImeValue[ip] || "";
+      const newText = data.text || "";
+
+      // If it's a single character, append it
+      // If it's multiple characters, it might be a replacement
+      if (newText.length === 1) {
+        remoteImeValue[ip] = currentText + newText;
+      } else {
+        remoteImeValue[ip] = newText;
+      }
+
+      // Broadcast the update to frontend
+      broadcast("ime_update", { ip, value: remoteImeValue[ip] });
     });
 
     remote.on("ime_batch_edit", (data) => {
@@ -299,8 +350,8 @@ router.post("/send-text", async (req, res) => {
   console.log(`[Server] send-text: ip=${ip}, text="${text}"`);
   console.log(`[Server] remoteImeInfo[${ip}]:`, remoteImeInfo[ip]);
 
-  // Store the sent text for future retrieval
-  remoteImeValue[ip] = text;
+  // For real-time sync, track what we're sending but don't overwrite TV's value
+  // The TV will send back updates via ime_show/ime_update events
 
   // First try direct IME injection if we have the required info
   const info = remoteImeInfo[ip];
@@ -316,8 +367,8 @@ router.post("/send-text", async (req, res) => {
     console.warn(`[Server] No IME info available, falling back to key simulation`);
   }
 
-  // Fallback: keycode simulation
-  const DELAY_MS = 60;
+  // Fallback: keycode simulation (for when direct IME injection is not available)
+  const DELAY_MS = 30; // Faster for real-time typing
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   function charToKey(ch) {
     const lower = ch.toLowerCase();
@@ -343,29 +394,63 @@ router.post("/send-text", async (req, res) => {
     };
     return s[ch] || null;
   }
+
+  // Track last sent text to calculate diff for key simulation
+  const lastSent = remoteImeInfo[ip]?.lastSentText || "";
+
   try {
-    // Clear existing text first
-    const existingText = remoteImeValue[ip] || "";
-    for (let i = 0; i < existingText.length; i++) {
-      remote.sendKey(67, RemoteDirection.SHORT); // KEYCODE_DEL (backspace)
-      await sleep(30);
+    // Calculate the difference: only send new characters
+    if (text.startsWith(lastSent) && text.length > lastSent.length) {
+      // User is typing - send only new characters
+      const newChars = text.slice(lastSent.length);
+      for (const ch of newChars) {
+        const mapped = charToKey(ch);
+        if (!mapped) continue;
+        if (mapped.shift) {
+          remote.sendKey(59, RemoteDirection.START_LONG);
+          await sleep(15);
+          remote.sendKey(mapped.keycode, RemoteDirection.SHORT);
+          await sleep(15);
+          remote.sendKey(59, RemoteDirection.END_LONG);
+        } else {
+          remote.sendKey(mapped.keycode, RemoteDirection.SHORT);
+        }
+        await sleep(DELAY_MS);
+      }
+    } else if (text.length < lastSent.length) {
+      // User deleted characters - send backspace for each deleted char
+      const deleteCount = lastSent.length - text.length;
+      for (let i = 0; i < deleteCount; i++) {
+        remote.sendKey(67, RemoteDirection.SHORT); // KEYCODE_DEL (backspace)
+        await sleep(DELAY_MS);
+      }
+    } else {
+      // Complete replacement needed (e.g., user selected all and typed)
+      // Send backspace for old text, then type new text
+      for (let i = 0; i < lastSent.length; i++) {
+        remote.sendKey(67, RemoteDirection.SHORT);
+        await sleep(20);
+      }
+      for (const ch of text) {
+        const mapped = charToKey(ch);
+        if (!mapped) continue;
+        if (mapped.shift) {
+          remote.sendKey(59, RemoteDirection.START_LONG);
+          await sleep(15);
+          remote.sendKey(mapped.keycode, RemoteDirection.SHORT);
+          await sleep(15);
+          remote.sendKey(59, RemoteDirection.END_LONG);
+        } else {
+          remote.sendKey(mapped.keycode, RemoteDirection.SHORT);
+        }
+        await sleep(DELAY_MS);
+      }
     }
 
-    // Send new text
-    for (const ch of text) {
-      const mapped = charToKey(ch);
-      if (!mapped) continue;
-      if (mapped.shift) {
-        remote.sendKey(59, RemoteDirection.START_LONG);
-        await sleep(25);
-        remote.sendKey(mapped.keycode, RemoteDirection.SHORT);
-        await sleep(25);
-        remote.sendKey(59, RemoteDirection.END_LONG);
-      } else {
-        remote.sendKey(mapped.keycode, RemoteDirection.SHORT);
-      }
-      await sleep(DELAY_MS);
-    }
+    // Store the sent text for next comparison
+    if (!remoteImeInfo[ip]) remoteImeInfo[ip] = {};
+    remoteImeInfo[ip].lastSentText = text;
+
     res.json({ status: "ok" });
   } catch (e) {
     res.status(500).json({ error: e.message });
