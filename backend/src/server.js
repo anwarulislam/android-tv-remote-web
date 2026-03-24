@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import express from "express";
 import cors from "cors";
+import express from "express";
 import discoverRouter from "./routes/discover.js";
 import remoteRouter from "./routes/remote.js";
 

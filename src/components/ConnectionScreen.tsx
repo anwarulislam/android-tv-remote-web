@@ -1,12 +1,12 @@
 import {
+  ChevronRight,
+  KeyRound,
+  Loader2,
+  RefreshCw,
+  ServerOff,
   Tv2,
   Wifi,
   WifiOff,
-  Loader2,
-  ChevronRight,
-  RefreshCw,
-  KeyRound,
-  ServerOff,
 } from "lucide-react";
 import { useAndroidTV } from "../hooks/useAndroidTV";
 
@@ -17,13 +17,7 @@ export interface Device {
 
 /* ── Helpers ───────────────────────────────────────────── */
 
-function StateTitle({
-  deviceState,
-  tvName,
-}: {
-  deviceState: string;
-  tvName: string;
-}) {
+function StateTitle({ deviceState, tvName }: { deviceState: string; tvName: string }) {
   if (deviceState === "no_server") return <>Local Server Needed</>;
   if (deviceState === "discovering") return <>Scanning Network&hellip;</>;
   if (deviceState === "pairing") return <>Connecting to {tvName}&hellip;</>;
@@ -34,25 +28,16 @@ function StateTitle({
 }
 
 function StateSubtitle({ deviceState }: { deviceState: string }) {
-  if (deviceState === "no_server")
-    return "Your browser needs a bridge to talk to your TV";
-  if (deviceState === "discovering")
-    return "Looking for Android TV on your network";
+  if (deviceState === "no_server") return "Your browser needs a bridge to talk to your TV";
+  if (deviceState === "discovering") return "Looking for Android TV on your network";
   if (deviceState === "pairing") return "Establishing secure connection";
-  if (deviceState === "needs_pin")
-    return "Enter the 6-digit code shown on your TV screen";
+  if (deviceState === "needs_pin") return "Enter the 6-digit code shown on your TV screen";
   if (deviceState === "discovered") return "Select a device to begin";
   if (deviceState === "select_saved") return "Tap to reconnect instantly";
   return "Type the IP address of your TV";
 }
 
-function DeviceList({
-  devices,
-  onConnect,
-}: {
-  devices: Device[];
-  onConnect: (d: Device) => void;
-}) {
+function DeviceList({ devices, onConnect }: { devices: Device[]; onConnect: (d: Device) => void }) {
   return (
     <div className="flex flex-col gap-3 w-full">
       {devices.map((d, i) => (
@@ -66,12 +51,8 @@ function DeviceList({
             <Tv2 size={20} className="text-indigo-400" />
           </div>
           <div className="flex flex-col flex-1 min-w-0">
-            <span className="font-semibold text-sm truncate">
-              {d.name || "Unknown TV"}
-            </span>
-            <span className="text-white/40 text-xs mt-0.5 font-mono">
-              {d.ip}
-            </span>
+            <span className="font-semibold text-sm truncate">{d.name || "Unknown TV"}</span>
+            <span className="text-white/40 text-xs mt-0.5 font-mono">{d.ip}</span>
           </div>
           <ChevronRight size={16} className="text-white/30 shrink-0" />
         </button>
@@ -133,34 +114,26 @@ export function ConnectionScreen() {
               <div className="flex flex-col items-center gap-5 pb-2 text-center">
                 <ServerOff size={48} className="text-red-400/80 mb-2" />
                 <p className="text-white/70 text-sm">
-                  Browsers cannot directly connect to Android TVs over TLS. You
-                  need to run our lightweight local server on your computer
-                  first.
+                  Browsers cannot directly connect to Android TVs over TLS. You need to run our
+                  lightweight local server on your computer first.
                 </p>
 
                 <div className="flex flex-col gap-3 w-full text-left mt-2">
                   <div className="step-card">
                     <div className="step-num">1</div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-white/90">
-                        Install & Run the Backend
-                      </p>
+                      <p className="text-sm font-medium text-white/90">Install & Run the Backend</p>
                       <p className="text-xs text-white/50 mt-1 mb-2">
-                        Open your terminal and run this command (requires
-                        Node.js):
+                        Open your terminal and run this command (requires Node.js):
                       </p>
-                      <code className="code-pill select-all">
-                        npx androidtv-remote-server
-                      </code>
+                      <code className="code-pill select-all">npx androidtv-remote-server</code>
                     </div>
                   </div>
 
                   <div className="step-card">
                     <div className="step-num">2</div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-white/90">
-                        Refresh this Page
-                      </p>
+                      <p className="text-sm font-medium text-white/90">Refresh this Page</p>
                       <p className="text-xs text-white/50 mt-1">
                         Once the server says it's listening, click below.
                       </p>
@@ -187,9 +160,7 @@ export function ConnectionScreen() {
                   </div>
                   <div className="absolute inset-0 rounded-full border-2 border-indigo-500/30 animate-spin" />
                 </div>
-                <p className="text-white/40 text-sm">
-                  This may take a few seconds…
-                </p>
+                <p className="text-white/40 text-sm">This may take a few seconds…</p>
               </div>
             )}
 
@@ -197,19 +168,14 @@ export function ConnectionScreen() {
             {deviceState === "pairing" && (
               <div className="flex flex-col items-center gap-5 py-6">
                 <Loader2 size={40} className="text-indigo-400 animate-spin" />
-                <p className="text-white/40 text-sm">
-                  Hold on while we connect securely
-                </p>
+                <p className="text-white/40 text-sm">Hold on while we connect securely</p>
               </div>
             )}
 
             {/* ── Saved devices (multiple) ── */}
             {deviceState === "select_saved" && (
               <div className="w-full">
-                <DeviceList
-                  devices={savedDevices}
-                  onConnect={(d) => connect(d.ip, d.name)}
-                />
+                <DeviceList devices={savedDevices} onConnect={(d) => connect(d.ip, d.name)} />
                 <button
                   className="flex items-center justify-center gap-2 w-full mt-1 py-3 rounded-xl text-sm font-medium text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors cursor-pointer"
                   onClick={discoverTV}
@@ -223,10 +189,7 @@ export function ConnectionScreen() {
             {/* ── Discovered devices ── */}
             {deviceState === "discovered" && (
               <div className="w-full">
-                <DeviceList
-                  devices={discoveredDevices}
-                  onConnect={(d) => connect(d.ip, d.name)}
-                />
+                <DeviceList devices={discoveredDevices} onConnect={(d) => connect(d.ip, d.name)} />
                 <div className="flex gap-3 w-full mt-1">
                   <button
                     className="flex-1 py-3 rounded-xl text-sm font-medium text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors cursor-pointer"

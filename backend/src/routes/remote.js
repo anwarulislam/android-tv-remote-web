@@ -1,9 +1,8 @@
+import fs from "node:fs";
+import path, { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import { AndroidRemote, RemoteDirection } from "../../lib/androidtv-remote/index.js";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -11,12 +10,12 @@ const __dirname = dirname(__filename);
 const router = express.Router();
 
 // ── IME State Management ───────────────────────────────────────────────────────────
-let remotes = {};
-let remotesState = {}; // "pairing" | "connected"
-let remoteVolume = {}; // { level, maximum, muted } per IP
-let remoteImeLabel = {}; // last known IME field label per IP
-let remoteImeValue = {}; // last known IME field value per IP
-let remoteImeInfo = {}; // { appPackage, counterField, lastSentText, cursorStart, cursorEnd } per IP
+const remotes = {};
+const remotesState = {}; // "pairing" | "connected"
+const remoteVolume = {}; // { level, maximum, muted } per IP
+const remoteImeLabel = {}; // last known IME field label per IP
+const remoteImeValue = {}; // last known IME field value per IP
+const remoteImeInfo = {}; // { appPackage, counterField, lastSentText, cursorStart, cursorEnd } per IP
 let sseClients = []; // SSE subscriber list
 
 const DEVICES_FILE = path.join(__dirname, "..", "devices.json");
@@ -60,7 +59,7 @@ router.get("/events", (req, res) => {
 });
 
 // ── Saved devices ────────────────────────────────────────────────────────────
-router.get("/saved-devices", (req, res) => {
+router.get("/saved-devices", (_req, res) => {
   const list = Object.values(savedDevices).map((d) => ({
     name: d.name,
     ip: d.ip,
@@ -77,14 +76,12 @@ router.post("/connect", async (req, res) => {
 
   try {
     if (remotes[ip] && remotesState[ip]) {
-      if (remotesState[ip] === "pairing")
-        return res.json({ status: "needs_pin" });
-      if (remotesState[ip] === "connected")
-        return res.json({ status: "connected" });
+      if (remotesState[ip] === "pairing") return res.json({ status: "needs_pin" });
+      if (remotesState[ip] === "connected") return res.json({ status: "connected" });
     }
 
-    let certOption = undefined;
-    if (savedDevices[ip] && savedDevices[ip].cert) {
+    let certOption;
+    if (savedDevices[ip]?.cert) {
       certOption = savedDevices[ip].cert;
     }
 
@@ -148,10 +145,10 @@ router.post("/connect", async (req, res) => {
       // Extract insert text if available
       const insertText = data.edit_info?.insert;
       if (insertText !== undefined) {
-        if (typeof insertText === 'number') {
+        if (typeof insertText === "number") {
           // Convert to string if needed
           remoteImeValue[ip] = (remoteImeValue[ip] || "") + String(insertText);
-        } else if (typeof insertText === 'string') {
+        } else if (typeof insertText === "string") {
           remoteImeValue[ip] = (remoteImeValue[ip] || "") + insertText;
         }
         broadcast("ime_update", { ip, value: remoteImeValue[ip] || "" });
@@ -203,8 +200,7 @@ router.post("/connect", async (req, res) => {
 router.post("/pair", async (req, res) => {
   const { ip, pin } = req.body;
   const remote = remotes[ip];
-  if (!remote)
-    return res.status(400).json({ error: "No connection for this IP" });
+  if (!remote) return res.status(400).json({ error: "No connection for this IP" });
   try {
     remote.sendCode(pin);
     res.json({ status: "success" });
@@ -263,7 +259,7 @@ router.post("/send-text", async (req, res) => {
 
   // First try direct IME injection if we have the required info
   const info = remoteImeInfo[ip];
-  if (info && info.appPackage) {
+  if (info?.appPackage) {
     try {
       // Increment counter for each send
       const counter = (info.counterField || 0) + 1;
@@ -293,8 +289,7 @@ router.post("/send-text", async (req, res) => {
     const lower = ch.toLowerCase();
     if (lower >= "a" && lower <= "z")
       return { keycode: 29 + (lower.charCodeAt(0) - 97), shift: ch !== lower };
-    if (ch >= "0" && ch <= "9")
-      return { keycode: 7 + (ch.charCodeAt(0) - 48), shift: false };
+    if (ch >= "0" && ch <= "9") return { keycode: 7 + (ch.charCodeAt(0) - 48), shift: false };
     const s = {
       " ": { keycode: 62, shift: false },
       ".": { keycode: 56, shift: false },
@@ -425,12 +420,12 @@ router.post("/send-shortcut", async (req, res) => {
 
   // Key codes for shortcuts
   const SHORTCUT_KEYS = {
-    SELECT_ALL: 30,    // KEYCODE_A
-    COPY: 35,          // KEYCODE_C
-    PASTE: 50,         // KEYCODE_V
-    CUT: 54,           // KEYCODE_X
-    UNDO: 52,          // KEYCODE_Z
-    REDO: 29,          // KEYCODE_Y
+    SELECT_ALL: 30, // KEYCODE_A
+    COPY: 35, // KEYCODE_C
+    PASTE: 50, // KEYCODE_V
+    CUT: 54, // KEYCODE_X
+    UNDO: 52, // KEYCODE_Z
+    REDO: 29, // KEYCODE_Y
   };
 
   // Android uses META_LEFT (keycode 117) for Ctrl-like behavior in shortcuts

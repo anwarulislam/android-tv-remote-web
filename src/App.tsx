@@ -7,9 +7,13 @@ function AppContent() {
   const { deviceState } = useAndroidTV();
 
   const isConnectionScreen = [
-    "disconnected", "pairing", "needs_pin",
-    "discovering", "discovered", "select_saved",
-    "no_server"
+    "disconnected",
+    "pairing",
+    "needs_pin",
+    "discovering",
+    "discovered",
+    "select_saved",
+    "no_server",
   ].includes(deviceState);
 
   return isConnectionScreen ? <ConnectionScreen /> : <RemoteScreen />;

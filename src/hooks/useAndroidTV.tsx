@@ -1,12 +1,5 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from "react";
 import type { ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 const API = "http://127.0.0.1:59999";
 
@@ -20,13 +13,7 @@ export type DeviceState =
   | "select_saved"
   | "no_server";
 
-export type Shortcut =
-  | "SELECT_ALL"
-  | "COPY"
-  | "PASTE"
-  | "CUT"
-  | "UNDO"
-  | "REDO";
+export type Shortcut = "SELECT_ALL" | "COPY" | "PASTE" | "CUT" | "UNDO" | "REDO";
 
 export interface Device {
   name: string;
@@ -66,11 +53,7 @@ interface AndroidTVContextValue {
   // Remote actions
   sendKey: (key: string) => Promise<void>;
   sendText: (text: string) => Promise<void>;
-  sendTextWithCursor: (
-    text: string,
-    cursorStart: number,
-    cursorEnd: number,
-  ) => Promise<void>;
+  sendTextWithCursor: (text: string, cursorStart: number, cursorEnd: number) => Promise<void>;
   sendCursorPosition: (start: number, end: number) => Promise<void>;
   sendShortcut: (shortcut: Shortcut) => Promise<void>;
   getImeValue: () => Promise<string>;
@@ -119,7 +102,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
         setVolume(data.level ?? 0);
         setVolumeMax(data.maximum ?? 100);
         setMuted(data.muted ?? false);
-      } catch (err) {}
+      } catch (_err) {}
     });
 
     es.addEventListener("ime_show", (e) => {
@@ -142,7 +125,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
         if (data.ip !== ip) return;
         setImeValue(data.value || "");
         setImeOpen(true);
-      } catch (err) {}
+      } catch (_err) {}
     });
 
     es.addEventListener("ime_hide", (e) => {
@@ -150,7 +133,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
         const data = JSON.parse(e.data);
         if (data.ip !== ip) return;
         setImeOpen(false);
-      } catch (err) {}
+      } catch (_err) {}
     });
 
     sseRef.current = es;
@@ -191,7 +174,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
     } else {
       discoverTV();
     }
-  }, [checkServerAlive]);
+  }, [checkServerAlive, connect, discoverTV]);
 
   const discoverTV = useCallback(async () => {
     setDeviceState("discovering");
@@ -357,11 +340,7 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
     getImeValue,
   };
 
-  return (
-    <AndroidTVContext.Provider value={value}>
-      {children}
-    </AndroidTVContext.Provider>
-  );
+  return <AndroidTVContext.Provider value={value}>{children}</AndroidTVContext.Provider>;
 }
 
 export function useAndroidTV(): AndroidTVContextValue {

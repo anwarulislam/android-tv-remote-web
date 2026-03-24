@@ -1,28 +1,29 @@
-import React, { useEffect, useRef, useState } from "react";
 import {
-  Settings,
-  Power,
-  SkipBack,
-  Rewind,
-  Play,
-  FastForward,
-  SkipForward,
-  ChevronUp,
+  ArrowLeft,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  FastForward,
   Home,
-  VolumeX,
-  Volume2,
-  Volume1,
-  Mic,
-  Menu,
-  ArrowLeft,
   Keyboard,
-  Tv2,
+  Menu,
+  Mic,
+  Play,
+  Power,
+  Rewind,
   Send,
+  Settings,
+  SkipBack,
+  SkipForward,
+  Tv2,
+  Volume1,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAndroidTV } from "../hooks/useAndroidTV";
 
 /* ── Small helpers ─────────────────────────────────────── */
@@ -83,14 +84,14 @@ export function RemoteScreen() {
       setImeText(imeValue);
       setTimeout(() => imeInputRef.current?.focus(), 80);
     }
-  }, [imeOpen]);
+  }, [imeOpen, imeValue]);
 
   // Sync imeValue from TV to imeText when user is not typing
   useEffect(() => {
     if (imeOpen && !isTypingRef.current && imeValue !== imeText) {
       setImeText(imeValue);
     }
-  }, [imeValue, imeOpen]);
+  }, [imeValue, imeOpen, imeText]);
 
   // ── Global keyboard shortcut handler ──────────────────
   useEffect(() => {
@@ -195,7 +196,7 @@ export function RemoteScreen() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [sendKey, setVolume, imeOpen]);
+  }, [sendKey, setVolume, openIme]);
 
   // ── IME submit ──────────────────────────────────────
   async function handleImeSend() {
@@ -218,8 +219,7 @@ export function RemoteScreen() {
 
   const onSettingsClick = () => initApp();
 
-  const volPct =
-    volumeMax > 0 ? Math.round((volume / volumeMax) * 100) : volume;
+  const volPct = volumeMax > 0 ? Math.round((volume / volumeMax) * 100) : volume;
 
   return (
     <div className="flex justify-center items-center min-h-screen w-[min(100vw,420px)] mx-auto bg-zinc-950 p-4 select-none">
@@ -440,10 +440,8 @@ export function RemoteScreen() {
             <div
               className="absolute inset-0 rounded-full"
               style={{
-                background:
-                  "radial-gradient(circle at 35% 30%, #2a2a38, #111115)",
-                boxShadow:
-                  "0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
+                background: "radial-gradient(circle at 35% 30%, #2a2a38, #111115)",
+                boxShadow: "0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
               }}
             />
 

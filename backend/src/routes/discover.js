@@ -1,19 +1,18 @@
-import express from "express";
 import { Bonjour } from "bonjour-service";
+import express from "express";
 
 const router = express.Router();
 
 const bonjour = new Bonjour();
 
-router.get("/", (req, res) => {
+router.get("/", (_req, res) => {
   console.log(`[Server] Discovering Android TVs on network...`);
-  let found = [];
+  const found = [];
 
   const browser = bonjour.find({ type: "androidtvremote2" });
 
   browser.on("up", (service) => {
-    const ip =
-      service.addresses.find((a) => a.includes(".")) || service.addresses[0];
+    const ip = service.addresses.find((a) => a.includes(".")) || service.addresses[0];
     if (ip && !found.find((d) => d.ip === ip)) {
       found.push({ name: service.name, ip });
     }

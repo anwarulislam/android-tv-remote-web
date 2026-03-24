@@ -1,6 +1,6 @@
-import tls from "tls";
+import EventEmitter from "node:events";
+import tls from "node:tls";
 import { remoteMessageManager } from "./RemoteMessageManager.js";
-import EventEmitter from "events";
 
 class RemoteManager extends EventEmitter {
   constructor(host, port, certs) {
@@ -14,7 +14,7 @@ class RemoteManager extends EventEmitter {
 
   async start() {
     return new Promise((resolve, reject) => {
-      let options = {
+      const options = {
         key: this.certs.key,
         cert: this.certs.cert,
         port: this.port,
@@ -37,25 +37,20 @@ class RemoteManager extends EventEmitter {
       this.client.setTimeout(10000);
 
       this.client.on("secureConnect", () => {
-        console.debug(this.host + " Remote secureConnect");
+        console.debug(`${this.host} Remote secureConnect`);
         resolve(true);
       });
 
       this.client.on("data", (data) => {
-        let buffer = Buffer.from(data);
+        const buffer = Buffer.from(data);
         this.chunks = Buffer.concat([this.chunks, buffer]);
 
-        if (
-          this.chunks.length > 0 &&
-          this.chunks.readInt8(0) === this.chunks.length - 1
-        ) {
-          let message = remoteMessageManager.parse(this.chunks);
+        if (this.chunks.length > 0 && this.chunks.readInt8(0) === this.chunks.length - 1) {
+          const message = remoteMessageManager.parse(this.chunks);
 
           if (!message.remotePingRequest) {
             //console.debug(this.host + " Receive : " + Array.from(this.chunks));
-            console.debug(
-              this.host + " Receive : " + JSON.stringify(message.toJSON()),
-            );
+            console.debug(`${this.host} Receive : ${JSON.stringify(message.toJSON())}`);
           }
 
           if (message.remoteConfigure) {
@@ -73,16 +68,11 @@ class RemoteManager extends EventEmitter {
             this.client.write(remoteMessageManager.createRemoteSetActive(622));
           } else if (message.remotePingRequest) {
             this.client.write(
-              remoteMessageManager.createRemotePingResponse(
-                message.remotePingRequest.val1,
-              ),
+              remoteMessageManager.createRemotePingResponse(message.remotePingRequest.val1),
             );
           } else if (message.remoteImeKeyInject) {
             // Emit current_app for compatibility
-            this.emit(
-              "current_app",
-              message.remoteImeKeyInject.appInfo.appPackage,
-            );
+            this.emit("current_app", message.remoteImeKeyInject.appInfo.appPackage);
             // Also emit ime_key_inject with full data (PATCHED)
             const textFieldStatus = message.remoteImeKeyInject.textFieldStatus;
             if (textFieldStatus) {
@@ -95,9 +85,7 @@ class RemoteManager extends EventEmitter {
               });
             }
           } else if (message.remoteImeBatchEdit) {
-            console.debug(
-              "Receive IME BATCH EDIT" + JSON.stringify(message.remoteImeBatchEdit),
-            );
+            console.debug(`Receive IME BATCH EDIT${JSON.stringify(message.remoteImeBatchEdit)}`);
             // Emit full batch edit data (PATCHED)
             this.emit("ime_batch_edit", message.remoteImeBatchEdit);
             // Batch edit with no insert often signals keyboard dismissed
@@ -142,7 +130,7 @@ class RemoteManager extends EventEmitter {
       });
 
       this.client.on("close", async (hasError) => {
-        console.info(this.host + " Remote Connection closed ", hasError);
+        console.info(`${this.host} Remote Connection closed `, hasError);
         if (hasError) {
           reject(this.error.code);
           if (this.error.code === "ECONNRESET") {
@@ -188,15 +176,11 @@ class RemoteManager extends EventEmitter {
   }
 
   sendKey(key, direction) {
-    this.client.write(
-      remoteMessageManager.createRemoteKeyInject(direction, key),
-    );
+    this.client.write(remoteMessageManager.createRemoteKeyInject(direction, key));
   }
 
   sendAppLink(app_link) {
-    this.client.write(
-      remoteMessageManager.createRemoteRemoteAppLinkLaunchRequest(app_link),
-    );
+    this.client.write(remoteMessageManager.createRemoteRemoteAppLinkLaunchRequest(app_link));
   }
 
   stop() {
