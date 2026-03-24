@@ -104,7 +104,9 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
   const [imeCursorEnd, setImeCursorEnd] = useState(0);
 
   const sseRef = useRef<EventSource | null>(null);
-  const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const pendingDeviceRef = useRef<Device | null>(null);
 
   // SSE connection
@@ -140,7 +142,13 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
         setImeCursorStart(data.start ?? 0);
         setImeCursorEnd(data.end ?? 0);
         setImeOpen(true);
-        console.log("[Frontend] Opening IME modal with value:", data.value, "cursor:", data.start, data.end);
+        console.log(
+          "[Frontend] Opening IME modal with value:",
+          data.value,
+          "cursor:",
+          data.start,
+          data.end,
+        );
       } catch (err) {
         console.error("[Frontend] Error parsing ime_show:", err);
       }
@@ -383,10 +391,37 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
     [ip],
   );
 
+  const checkImeOnConnect = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/ime-state?ip=${encodeURIComponent(ip)}`);
+      if (res.ok) {
+        const data = await res.json();
+        // If an input is focused, open the modal with current state
+        if (data.focused) {
+          console.log("[Frontend] Focused input detected on connect:", data);
+          setImeLabel(data.label || "");
+          setImeValue(data.value || "");
+          setImeCursorStart(data.start || 0);
+          setImeCursorEnd(data.end || 0);
+          setImeOpen(true);
+        }
+      }
+    } catch (err) {
+      console.error("[Frontend] Error checking IME on connect:", err);
+    }
+  }, [ip]);
+
   // Initialize on mount
   useEffect(() => {
     initApp();
   }, [initApp]);
+
+  // Check for focused input when device connects
+  useEffect(() => {
+    if (deviceState === "connected") {
+      checkImeOnConnect();
+    }
+  }, [deviceState, checkImeOnConnect]);
 
   const value: AndroidTVContextValue = {
     deviceState,

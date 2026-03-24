@@ -155,19 +155,39 @@ router.post("/connect", async (req, res) => {
       );
       // Extract insert text if available
       const insertText = data.edit_info?.insert;
-      if (insertText !== undefined) {
-        if (typeof insertText === "number") {
-          // Single character code - append it
-          remoteImeValue[ip] =
-            (remoteImeValue[ip] || "") + String.fromCharCode(insertText);
-        } else if (typeof insertText === "string") {
-          // Full text - replace the entire value
+
+      // If undefined, keyboard was dismissed
+      if (insertText === undefined) {
+        broadcast("ime_hide", { ip });
+        return;
+      }
+
+      // Skip empty string responses from TV (often sent during cursor positioning)
+      // This prevents accidentally clearing text when the TV echoes back an empty value
+      if (insertText === "") {
+        console.log(
+          `[Server] Skipping empty insertText from TV (likely cursor positioning response)`,
+        );
+        return;
+      }
+
+      // Process actual text content
+      if (typeof insertText === "number") {
+        // Single character code - append it
+        remoteImeValue[ip] =
+          (remoteImeValue[ip] || "") + String.fromCharCode(insertText);
+        broadcast("ime_update", { ip, value: remoteImeValue[ip] || "" });
+      } else if (typeof insertText === "string") {
+        // Full text - only broadcast if the value actually changed
+        const oldValue = remoteImeValue[ip] || "";
+        if (insertText !== oldValue) {
+          remoteImeValue[ip] = insertText;
+          broadcast("ime_update", { ip, value: remoteImeValue[ip] || "" });
+        }
+        // If values are the same, still update stored value but don't broadcast
+        else {
           remoteImeValue[ip] = insertText;
         }
-        broadcast("ime_update", { ip, value: remoteImeValue[ip] || "" });
-      } else {
-        // No insert text = keyboard dismissed or deleted
-        broadcast("ime_hide", { ip });
       }
     });
 
@@ -509,6 +529,22 @@ router.post("/send-shortcut", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Get current IME state (is an input focused?) ─────────────────────────────────────
+router.get("/ime-state", (req, res) => {
+  const ip = req.query.ip;
+  if (ip && remoteImeInfo[ip] && (remoteImeInfo[ip].appPackage || remoteImeInfo[ip].counterField !== undefined)) {
+    const info = remoteImeInfo[ip];
+    return res.json({
+      focused: true,
+      label: remoteImeLabel[ip] || "",
+      value: remoteImeValue[ip] || "",
+      start: info.cursorStart || 0,
+      end: info.cursorEnd || 0,
+    });
+  }
+  res.json({ focused: false });
 });
 
 // ── Get current IME value ───────────────────────────────────────────────────────

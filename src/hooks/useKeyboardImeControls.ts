@@ -117,7 +117,9 @@ export function useKeyboardImeControls() {
   );
 
   const handleFocus = useCallback(() => {
-    isTypingRef.current = false;
+    // Don't reset isTypingRef here - it causes a race condition where focusing
+    // the textarea immediately allows TV's echo to overwrite local text.
+    // The isTypingRef is managed by handleChange which resets after 200ms.
   }, []);
 
   const handleBlur = useCallback(() => {
