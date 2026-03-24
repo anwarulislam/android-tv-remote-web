@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 const API = "http://127.0.0.1:59999";
 
@@ -13,7 +20,13 @@ export type DeviceState =
   | "select_saved"
   | "no_server";
 
-export type Shortcut = "SELECT_ALL" | "COPY" | "PASTE" | "CUT" | "UNDO" | "REDO";
+export type Shortcut =
+  | "SELECT_ALL"
+  | "COPY"
+  | "PASTE"
+  | "CUT"
+  | "UNDO"
+  | "REDO";
 
 export interface Device {
   name: string;
@@ -53,7 +66,11 @@ interface AndroidTVContextValue {
   // Remote actions
   sendKey: (key: string) => Promise<void>;
   sendText: (text: string) => Promise<void>;
-  sendTextWithCursor: (text: string, cursorStart: number, cursorEnd: number) => Promise<void>;
+  sendTextWithCursor: (
+    text: string,
+    cursorStart: number,
+    cursorEnd: number,
+  ) => Promise<void>;
   sendCursorPosition: (start: number, end: number) => Promise<void>;
   sendShortcut: (shortcut: Shortcut) => Promise<void>;
   getImeValue: () => Promise<string>;
@@ -153,29 +170,6 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const initApp = useCallback(async () => {
-    setDeviceState("discovering");
-
-    const serverData = await checkServerAlive();
-    if (!serverData) {
-      setDeviceState("no_server");
-      return;
-    }
-
-    const sDevs = serverData.devices || [];
-    setSavedDevices(sDevs);
-
-    if (sDevs.length > 0) {
-      setDeviceState("select_saved");
-
-      if (sDevs.length === 1) {
-        connect(sDevs[0].ip, sDevs[0].name);
-      }
-    } else {
-      discoverTV();
-    }
-  }, [checkServerAlive, connect, discoverTV]);
-
   const discoverTV = useCallback(async () => {
     setDeviceState("discovering");
     try {
@@ -222,6 +216,29 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
       setDeviceState("disconnected");
     }
   }, []);
+
+  const initApp = useCallback(async () => {
+    setDeviceState("discovering");
+
+    const serverData = await checkServerAlive();
+    if (!serverData) {
+      setDeviceState("no_server");
+      return;
+    }
+
+    const sDevs = serverData.devices || [];
+    setSavedDevices(sDevs);
+
+    if (sDevs.length > 0) {
+      setDeviceState("select_saved");
+
+      if (sDevs.length === 1) {
+        connect(sDevs[0].ip, sDevs[0].name);
+      }
+    } else {
+      discoverTV();
+    }
+  }, [checkServerAlive, connect, discoverTV]);
 
   const submitPin = useCallback(async () => {
     try {
@@ -340,7 +357,11 @@ export function AndroidTVProvider({ children }: { children: ReactNode }) {
     getImeValue,
   };
 
-  return <AndroidTVContext.Provider value={value}>{children}</AndroidTVContext.Provider>;
+  return (
+    <AndroidTVContext.Provider value={value}>
+      {children}
+    </AndroidTVContext.Provider>
+  );
 }
 
 export function useAndroidTV(): AndroidTVContextValue {
